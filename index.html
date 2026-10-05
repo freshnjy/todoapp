@@ -15,16 +15,39 @@
       <p class="header-date" id="today"></p>
     </header>
 
-    <!-- 진행률 영역 (선택한 탭 기준) -->
-    <section class="progress" aria-label="진행률">
+    <!-- 통계: 선택한 탭 진행률 + 카테고리별 현황 -->
+    <section class="card stats" id="stats" data-filter="all" aria-label="진행 현황">
+      <div class="stats-head">
+        <div>
+          <p class="stats-label" id="stats-label">전체 진행률</p>
+          <p class="stats-summary" id="progress-text" aria-live="polite"></p>
+        </div>
+        <p class="stats-percent" id="stats-percent" aria-hidden="true">0%</p>
+      </div>
       <div class="progress-bar" id="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
         <div class="progress-fill" id="progress-fill"></div>
       </div>
-      <p class="progress-text" id="progress-text" aria-live="polite"></p>
+      <ul class="stats-list" id="stats-list">
+        <li class="stats-row cat-work" data-category="work">
+          <span class="stats-name">업무</span>
+          <span class="mini-bar" aria-hidden="true"><span class="mini-fill"></span></span>
+          <span class="stats-count">0 / 0</span>
+        </li>
+        <li class="stats-row cat-personal" data-category="personal">
+          <span class="stats-name">개인</span>
+          <span class="mini-bar" aria-hidden="true"><span class="mini-fill"></span></span>
+          <span class="stats-count">0 / 0</span>
+        </li>
+        <li class="stats-row cat-growth" data-category="growth">
+          <span class="stats-name">성장</span>
+          <span class="mini-bar" aria-hidden="true"><span class="mini-fill"></span></span>
+          <span class="stats-count">0 / 0</span>
+        </li>
+      </ul>
     </section>
 
     <!-- 입력 영역 -->
-    <form class="add-form" id="add-form">
+    <form class="card add-form" id="add-form">
       <input class="add-input" id="add-input" type="text" maxlength="100"
              placeholder="할 일을 입력하세요" aria-label="할 일 내용" autocomplete="off">
       <div class="add-row">

@@ -18,6 +18,10 @@ const statusTabsEl = document.getElementById('status-tabs');
 const progressBar = document.getElementById('progress-bar');
 const progressFill = document.getElementById('progress-fill');
 const progressText = document.getElementById('progress-text');
+const statsEl = document.getElementById('stats');
+const statsLabel = document.getElementById('stats-label');
+const statsPercent = document.getElementById('stats-percent');
+const statsListEl = document.getElementById('stats-list');
 
 // 상태: 할 일 배열, 마지막 접속 날짜 (이 둘만 저장)
 let todos = loadTodos();
@@ -164,7 +168,8 @@ function createButton(label, action, ariaLabel, extraClass = '') {
 
 function createTodoItem(todo) {
   const li = document.createElement('li');
-  li.className = todo.done ? 'todo-item is-done' : 'todo-item';
+  li.className = `todo-item cat-${normalizeCategory(todo.category)}`;
+  if (todo.done) li.classList.add('is-done');
   li.dataset.id = todo.id;
 
   const label = document.createElement('label');
@@ -177,8 +182,8 @@ function createTodoItem(todo) {
   label.append(checkbox);
 
   const badge = document.createElement('span');
-  badge.className = `badge badge-${todo.category}`;
-  badge.textContent = CATEGORY_LABELS[todo.category] ?? CATEGORY_LABELS.work;
+  badge.className = 'badge';
+  badge.textContent = CATEGORY_LABELS[normalizeCategory(todo.category)];
 
   const text = document.createElement('span');
   text.className = 'todo-text';
@@ -198,7 +203,7 @@ function createTodoItem(todo) {
 // 수정 중인 항목: 그 자리에 입력창 + 카테고리 + 저장/취소
 function createEditItem(todo) {
   const li = document.createElement('li');
-  li.className = 'todo-item is-editing';
+  li.className = `todo-item is-editing cat-${normalizeCategory(editing.category)}`;
   li.dataset.id = todo.id;
 
   const editForm = document.createElement('form');
@@ -265,17 +270,34 @@ function renderStatusTabs() {
   });
 }
 
-// 선택한 탭 기준 진행률 (상태 필터와 상관없이 카테고리 기준)
-function renderProgress(visible) {
+function getPercent(list) {
+  if (list.length === 0) return 0;
+  return Math.round((list.filter((todo) => todo.done).length / list.length) * 100);
+}
+
+// 통계 카드: 선택한 탭 진행률 (상태 필터와 상관없이 카테고리 기준) + 카테고리별 현황
+function renderStats(visible) {
   const total = visible.length;
   const doneCount = visible.filter((todo) => todo.done).length;
-  const percent = total === 0 ? 0 : Math.round((doneCount / total) * 100);
+  const percent = getPercent(visible);
 
+  statsEl.dataset.filter = currentFilter;
+  statsLabel.textContent = currentFilter === 'all'
+    ? '전체 진행률'
+    : `${CATEGORY_LABELS[currentFilter]} 진행률`;
+  statsPercent.textContent = `${percent}%`;
   progressFill.style.width = `${percent}%`;
   progressBar.setAttribute('aria-valuenow', String(percent));
   progressText.textContent = total === 0
-    ? '아직 할 일이 없어요 (0%)'
-    : `${doneCount} / ${total} 완료 (${percent}%)`;
+    ? '아직 할 일이 없어요'
+    : `${total}개 중 ${doneCount}개 완료`;
+
+  statsListEl.querySelectorAll('.stats-row').forEach((row) => {
+    const list = todos.filter((todo) => todo.category === row.dataset.category);
+    const rowDone = list.filter((todo) => todo.done).length;
+    row.querySelector('.mini-fill').style.width = `${getPercent(list)}%`;
+    row.querySelector('.stats-count').textContent = `${rowDone} / ${list.length}`;
+  });
 }
 
 // 화면 전체 다시 그리기: 미완료 → 완료 순, 그룹 안은 배열 순서
@@ -301,7 +323,7 @@ function render() {
 
   renderTabs();
   renderStatusTabs();
-  renderProgress(visible);
+  renderStats(visible);
 }
 
 // 다시 그린 뒤 같은 항목의 같은 컨트롤에 포커스를 되돌린다 (키보드 사용)

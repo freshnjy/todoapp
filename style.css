@@ -1,20 +1,23 @@
 /* 색상과 크기 */
 :root {
-  --bg: #f4f5f7;
+  --bg: #f2f4f8;
   --surface: #ffffff;
-  --text: #1f2328;
+  --text: #1b1f27;
   --text-sub: #6b7280;
-  --border: #dde1e6;
-  --primary: #3b5bdb;
+  --border: #e3e7ee;
+  --track: #e9edf3;
+  --primary: #4361ee;
   --primary-text: #ffffff;
-  --danger: #c92a2a;
-  --work: #1c7ed6;
-  --work-bg: #e7f1fb;
-  --personal: #2b8a3e;
-  --personal-bg: #e6f4ea;
-  --growth: #9c36b5;
-  --growth-bg: #f6e8fa;
-  --radius: 10px;
+  --danger: #d63c3c;
+  --work: #3a7bd5;
+  --work-bg: #e8f0fb;
+  --personal: #2f9e68;
+  --personal-bg: #e5f5ed;
+  --growth: #9b5de5;
+  --growth-bg: #f3ebfc;
+  --radius: 14px;
+  --radius-sm: 10px;
+  --shadow: 0 1px 2px rgba(20, 30, 60, 0.05), 0 4px 14px rgba(20, 30, 60, 0.06);
   --touch: 44px;
 }
 
@@ -48,11 +51,33 @@ select {
   color: inherit;
 }
 
+/* 카테고리 색: 항목에 cat-* 클래스를 붙이면 --cat이 정해진다 */
+.cat-work {
+  --cat: var(--work);
+  --cat-bg: var(--work-bg);
+}
+
+.cat-personal {
+  --cat: var(--personal);
+  --cat-bg: var(--personal-bg);
+}
+
+.cat-growth {
+  --cat: var(--growth);
+  --cat-bg: var(--growth-bg);
+}
+
 /* 전체 틀: 모바일 기준, 넓은 화면은 600px 가운데 */
 .app {
   max-width: 600px;
   margin: 0 auto;
-  padding: 16px;
+  padding: 20px 16px 32px;
+}
+
+.card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
 }
 
 /* 헤더 */
@@ -62,26 +87,69 @@ select {
 
 .header-title {
   margin: 0;
-  font-size: 24px;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 
 .header-date {
-  margin: 4px 0 0;
+  margin: 2px 0 0;
   color: var(--text-sub);
   font-size: 14px;
 }
 
-/* 진행률 */
-.progress {
+/* 통계 카드 */
+.stats {
+  --accent: var(--primary);
   margin-bottom: 16px;
-  padding: 12px 16px;
-  background: var(--surface);
-  border-radius: var(--radius);
+  padding: 18px 18px 14px;
+}
+
+.stats[data-filter="work"] {
+  --accent: var(--work);
+}
+
+.stats[data-filter="personal"] {
+  --accent: var(--personal);
+}
+
+.stats[data-filter="growth"] {
+  --accent: var(--growth);
+}
+
+.stats-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.stats-label {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-sub);
+}
+
+.stats-summary {
+  margin: 2px 0 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.stats-percent {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--accent);
 }
 
 .progress-bar {
   height: 10px;
-  background: var(--border);
+  background: var(--track);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -89,15 +157,66 @@ select {
 .progress-fill {
   width: 0;
   height: 100%;
-  background: var(--primary);
+  background: var(--accent);
   border-radius: 999px;
-  transition: width 0.2s;
+  transition: width 0.25s, background-color 0.25s;
 }
 
-.progress-text {
-  margin: 8px 0 0;
+/* 카테고리별 현황: 왼쪽 세로줄 + 작은 막대 */
+.stats-list {
+  margin: 14px 0 0;
+  padding: 12px 0 0;
+  list-style: none;
+  border-top: 1px solid var(--border);
+}
+
+.stats-row {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0 5px 10px;
+  border-left: 3px solid var(--cat);
   font-size: 14px;
+}
+
+.stats-row + .stats-row {
+  margin-top: 6px;
+}
+
+.stats-name {
+  font-weight: 600;
+}
+
+.mini-bar {
+  display: block;
+  height: 6px;
+  background: var(--track);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.mini-fill {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: var(--cat);
+  border-radius: 999px;
+  transition: width 0.25s;
+}
+
+.stats-count {
+  min-width: 44px;
   color: var(--text-sub);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 카테고리 탭을 고르면 그 줄만 강조 */
+.stats[data-filter="work"] .stats-row:not(.cat-work),
+.stats[data-filter="personal"] .stats-row:not(.cat-personal),
+.stats[data-filter="growth"] .stats-row:not(.cat-growth) {
+  opacity: 0.45;
 }
 
 /* 입력 영역 */
@@ -105,7 +224,8 @@ select {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
+  padding: 12px;
 }
 
 .add-input,
@@ -115,7 +235,7 @@ select {
   font-size: 16px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
 }
 
 .add-input {
@@ -145,15 +265,16 @@ select {
   padding: 0 16px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 
 .btn-primary {
+  padding: 0 22px;
   background: var(--primary);
   color: var(--primary-text);
   border-color: var(--primary);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .btn-small {
@@ -171,12 +292,12 @@ select {
   outline-offset: 2px;
 }
 
-/* 필터 탭 */
+/* 카테고리 탭 */
 .tabs {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 6px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .tab {
@@ -184,33 +305,62 @@ select {
   padding: 0 4px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: 999px;
   font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
 }
 
 .tab.is-active {
-  background: var(--primary);
+  background: var(--text);
   color: var(--primary-text);
-  border-color: var(--primary);
-  font-weight: 600;
+  border-color: var(--text);
 }
 
-/* 상태 필터: 카테고리 탭과 구분되게 테두리만 강조 */
-.status-tabs {
-  grid-template-columns: repeat(3, 1fr);
+/* 선택한 카테고리 탭은 그 카테고리 색 */
+.tab.is-active[data-filter="work"] {
+  background: var(--work);
+  border-color: var(--work);
 }
 
-.status-tabs .tab.is-active {
-  background: var(--surface);
-  color: var(--primary);
-  border: 2px solid var(--primary);
+.tab.is-active[data-filter="personal"] {
+  background: var(--personal);
+  border-color: var(--personal);
+}
+
+.tab.is-active[data-filter="growth"] {
+  background: var(--growth);
+  border-color: var(--growth);
 }
 
 .tab-count {
   font-size: 12px;
-  opacity: 0.8;
+  font-weight: 500;
+  opacity: 0.75;
+}
+
+/* 상태 필터: 하나로 묶인 버튼 */
+.status-tabs {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  margin-bottom: 14px;
+  padding: 3px;
+  background: var(--track);
+  border-radius: var(--radius-sm);
+}
+
+.status-tabs .tab {
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text-sub);
+}
+
+.status-tabs .tab.is-active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(20, 30, 60, 0.12);
 }
 
 /* 할 일 목록 */
@@ -220,14 +370,16 @@ select {
   list-style: none;
 }
 
+/* 왼쪽 세로줄로 카테고리 색 표시 */
 .todo-item {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
-  padding: 4px 8px 4px 0;
+  padding: 4px 8px 4px 4px;
   background: var(--surface);
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
+  box-shadow: inset 4px 0 0 var(--cat, var(--border)), var(--shadow);
 }
 
 /* 체크박스 터치 영역 44x44 */
@@ -245,12 +397,14 @@ select {
   width: 20px;
   height: 20px;
   margin: 0;
+  accent-color: var(--cat, var(--primary));
   cursor: pointer;
 }
 
 .todo-text {
   flex: 1;
   min-width: 0;
+  word-break: keep-all;
   overflow-wrap: anywhere;
 }
 
@@ -260,7 +414,13 @@ select {
   flex-shrink: 0;
 }
 
-/* 완료 항목: 취소선, 흐린 글씨 */
+/* 완료 항목: 취소선, 흐린 글씨, 옅은 세로줄 */
+.todo-item.is-done {
+  background: #fafbfc;
+  box-shadow: inset 4px 0 0 var(--border), 0 1px 2px rgba(20, 30, 60, 0.04);
+  box-shadow: inset 4px 0 0 color-mix(in srgb, var(--cat) 35%, transparent), 0 1px 2px rgba(20, 30, 60, 0.04);
+}
+
 .todo-item.is-done .todo-text {
   text-decoration: line-through;
   color: var(--text-sub);
@@ -276,27 +436,14 @@ select {
   padding: 2px 8px;
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 600;
-}
-
-.badge-work {
-  color: var(--work);
-  background: var(--work-bg);
-}
-
-.badge-personal {
-  color: var(--personal);
-  background: var(--personal-bg);
-}
-
-.badge-growth {
-  color: var(--growth);
-  background: var(--growth-bg);
+  font-weight: 700;
+  color: var(--cat);
+  background: var(--cat-bg);
 }
 
 /* 수정 중인 항목 */
 .todo-item.is-editing {
-  padding: 8px;
+  padding: 10px 10px 10px 14px;
 }
 
 .edit-form {
@@ -309,20 +456,27 @@ select {
 
 /* 빈 목록 안내 */
 .empty {
-  margin: 24px 0;
+  margin: 0;
+  padding: 32px 16px;
   color: var(--text-sub);
   text-align: center;
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius);
 }
 
 /* 완료 항목 지우기 */
 .btn-clear {
   display: block;
   margin: 16px auto 0;
+  background: transparent;
+  border-color: transparent;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 /* 하단 안내 */
 .footer {
-  margin-top: 24px;
+  margin-top: 28px;
   color: var(--text-sub);
   font-size: 12px;
   text-align: center;
