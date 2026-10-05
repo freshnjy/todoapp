@@ -252,6 +252,13 @@ select {
   min-width: 0;
 }
 
+/* 자동 분류로 바뀐 카테고리 표시 */
+.add-category.is-auto {
+  border-color: var(--primary);
+  background: #eef1fe;
+  font-weight: 600;
+}
+
 .add-input:focus,
 .add-category:focus {
   outline: 2px solid var(--primary);

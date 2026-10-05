@@ -6,6 +6,25 @@ const MAX_LENGTH = 100;
 const CATEGORY_LABELS = { work: '업무', personal: '개인', growth: '성장' };
 const CATEGORY_VALUES = Object.keys(CATEGORY_LABELS);
 
+// 자동 분류 키워드 (2글자 이상, 영어는 소문자)
+const CATEGORY_KEYWORDS = {
+  work: [
+    '회의', '미팅', '회의록', '보고서', '메일', '기획', '제안서', '발표', '결재', '기안',
+    '출근', '퇴근', '업무', '프로젝트', '거래처', '고객', '클라이언트', '계약', '견적',
+    '회사', '팀장', '상사', '마감', '엑셀', '문서', '출장', '정산', '매출', '세금계산서', 'ppt',
+  ],
+  personal: [
+    '장보기', '장보', '마트', '청소', '빨래', '설거지', '분리수거', '요리', '집안일',
+    '병원', '치과', '약국', '은행', '운동', '헬스', '산책', '요가', '택배', '반납', '세탁',
+    '미용실', '가족', '부모님', '엄마', '아빠', '친구', '약속', '생일', '선물', '여행', '관리비', '강아지',
+  ],
+  growth: [
+    '공부', '독서', '책 읽기', '강의', '인강', '강좌', '영어', '일본어', '중국어', '단어',
+    '자격증', '시험', '토익', '복습', '예습', '블로그', '글쓰기', '일기', '코딩', '알고리즘',
+    '스터디', '세미나', '강연', '튜토리얼', '연습', '명상', '회고', '학원', '수업', '과제',
+  ],
+};
+
 const todayEl = document.getElementById('today');
 const form = document.getElementById('add-form');
 const input = document.getElementById('add-input');
@@ -30,6 +49,8 @@ let lastDate = localStorage.getItem(LAST_DATE_KEY);
 let currentFilter = 'all';
 let statusFilter = 'all';
 let editing = null;
+// 사용자가 카테고리를 직접 고르면 이번 할 일은 자동 분류를 멈춘다
+let categoryLocked = false;
 
 // localStorage에서 불러오기 (깨져 있으면 빈 목록)
 function loadTodos() {
@@ -357,6 +378,39 @@ function endEdit(id, shouldSave) {
   restoreFocus(id, 'edit');
 }
 
+// 키워드가 가장 많이 맞은 카테고리 (안 맞거나 동점이면 null)
+function guessCategory(text) {
+  const lower = text.toLowerCase();
+  let best = null;
+  let bestScore = 0;
+  let isTie = false;
+  CATEGORY_VALUES.forEach((category) => {
+    const score = CATEGORY_KEYWORDS[category].filter((word) => lower.includes(word)).length;
+    if (score > bestScore) {
+      best = category;
+      bestScore = score;
+      isTie = false;
+    } else if (score > 0 && score === bestScore) {
+      isTie = true;
+    }
+  });
+  return isTie ? null : best;
+}
+
+// 입력하는 동안 카테고리 선택칸을 자동으로 바꾼다
+input.addEventListener('input', () => {
+  if (categoryLocked) return;
+  const guess = guessCategory(input.value);
+  if (!guess) return;
+  categorySelect.value = guess;
+  categorySelect.classList.add('is-auto');
+});
+
+categorySelect.addEventListener('change', () => {
+  categoryLocked = true;
+  categorySelect.classList.remove('is-auto');
+});
+
 form.addEventListener('submit', (event) => {
   event.preventDefault();
   const text = input.value.trim().slice(0, MAX_LENGTH);
@@ -367,6 +421,8 @@ form.addEventListener('submit', (event) => {
   }
   addTodo(text, categorySelect.value);
   input.value = '';
+  categoryLocked = false;
+  categorySelect.classList.remove('is-auto');
   input.focus();
 });
 
