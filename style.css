@@ -1,0 +1,316 @@
+/* 색상과 크기 */
+:root {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --text: #1f2328;
+  --text-sub: #6b7280;
+  --border: #dde1e6;
+  --primary: #3b5bdb;
+  --primary-text: #ffffff;
+  --danger: #c92a2a;
+  --work: #1c7ed6;
+  --work-bg: #e7f1fb;
+  --personal: #2b8a3e;
+  --personal-bg: #e6f4ea;
+  --growth: #9c36b5;
+  --growth-bg: #f6e8fa;
+  --radius: 10px;
+  --touch: 44px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+/* hidden 속성이 display 지정보다 우선하게 */
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+/* 전체 틀: 모바일 기준, 넓은 화면은 600px 가운데 */
+.app {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+/* 헤더 */
+.header {
+  margin-bottom: 16px;
+}
+
+.header-title {
+  margin: 0;
+  font-size: 24px;
+}
+
+.header-date {
+  margin: 4px 0 0;
+  color: var(--text-sub);
+  font-size: 14px;
+}
+
+/* 진행률 */
+.progress {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border-radius: var(--radius);
+}
+
+.progress-bar {
+  height: 10px;
+  background: var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  width: 0;
+  height: 100%;
+  background: var(--primary);
+  border-radius: 999px;
+  transition: width 0.2s;
+}
+
+.progress-text {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--text-sub);
+}
+
+/* 입력 영역 */
+.add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.add-input,
+.add-category {
+  min-height: var(--touch);
+  padding: 8px 12px;
+  font-size: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.add-input {
+  width: 100%;
+}
+
+.add-row {
+  display: flex;
+  gap: 8px;
+}
+
+.add-category {
+  flex: 1;
+  min-width: 0;
+}
+
+.add-input:focus,
+.add-category:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+/* 버튼 공통 */
+.btn {
+  min-width: var(--touch);
+  min-height: var(--touch);
+  padding: 0 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: var(--primary-text);
+  border-color: var(--primary);
+  font-weight: 600;
+}
+
+.btn-small {
+  padding: 0 10px;
+  font-size: 14px;
+}
+
+.btn-danger {
+  color: var(--danger);
+}
+
+.btn:focus-visible,
+.tab:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* 필터 탭 */
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.tab {
+  min-height: var(--touch);
+  padding: 0 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tab.is-active {
+  background: var(--primary);
+  color: var(--primary-text);
+  border-color: var(--primary);
+  font-weight: 600;
+}
+
+.tab-count {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+/* 할 일 목록 */
+.todo-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.todo-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 4px 8px 4px 0;
+  background: var(--surface);
+  border-radius: var(--radius);
+}
+
+/* 체크박스 터치 영역 44x44 */
+.todo-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--touch);
+  height: var(--touch);
+  cursor: pointer;
+}
+
+.todo-check input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.todo-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.todo-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* 완료 항목: 취소선, 흐린 글씨 */
+.todo-item.is-done .todo-text {
+  text-decoration: line-through;
+  color: var(--text-sub);
+}
+
+.todo-item.is-done .badge {
+  opacity: 0.6;
+}
+
+/* 카테고리 배지 */
+.badge {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.badge-work {
+  color: var(--work);
+  background: var(--work-bg);
+}
+
+.badge-personal {
+  color: var(--personal);
+  background: var(--personal-bg);
+}
+
+.badge-growth {
+  color: var(--growth);
+  background: var(--growth-bg);
+}
+
+/* 수정 중인 항목 */
+.todo-item.is-editing {
+  padding: 8px;
+}
+
+.edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* 빈 목록 안내 */
+.empty {
+  margin: 24px 0;
+  color: var(--text-sub);
+  text-align: center;
+}
+
+/* 하단 안내 */
+.footer {
+  margin-top: 24px;
+  color: var(--text-sub);
+  font-size: 12px;
+  text-align: center;
+}
+
+.footer p {
+  margin: 0;
+}

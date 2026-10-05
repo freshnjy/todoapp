@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>오늘 할 일</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <main class="app">
+    <!-- 헤더: 앱 이름, 오늘 날짜 -->
+    <header class="header">
+      <h1 class="header-title">오늘 할 일</h1>
+      <p class="header-date" id="today"></p>
+    </header>
+
+    <!-- 진행률 영역 (선택한 탭 기준) -->
+    <section class="progress" aria-label="진행률">
+      <div class="progress-bar" id="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+      <p class="progress-text" id="progress-text" aria-live="polite"></p>
+    </section>
+
+    <!-- 입력 영역 -->
+    <form class="add-form" id="add-form">
+      <input class="add-input" id="add-input" type="text" maxlength="100"
+             placeholder="할 일을 입력하세요" aria-label="할 일 내용" autocomplete="off">
+      <div class="add-row">
+        <select class="add-category" id="add-category" aria-label="카테고리">
+          <option value="work">업무</option>
+          <option value="personal">개인</option>
+          <option value="growth">성장</option>
+        </select>
+        <button class="btn btn-primary" type="submit">추가</button>
+      </div>
+    </form>
+
+    <!-- 필터 탭 -->
+    <nav class="tabs" id="tabs" aria-label="카테고리 필터">
+      <button class="tab is-active" type="button" data-filter="all" aria-pressed="true">전체 <span class="tab-count">0</span></button>
+      <button class="tab" type="button" data-filter="work" aria-pressed="false">업무 <span class="tab-count">0</span></button>
+      <button class="tab" type="button" data-filter="personal" aria-pressed="false">개인 <span class="tab-count">0</span></button>
+      <button class="tab" type="button" data-filter="growth" aria-pressed="false">성장 <span class="tab-count">0</span></button>
+    </nav>
+
+    <!-- 할 일 목록 (app.js의 render()가 채움) -->
+    <ul class="todo-list" id="todo-list"></ul>
+    <p class="empty" id="empty" hidden>오늘 할 일을 추가해 보세요</p>
+
+    <footer class="footer">
+      <p>데이터는 이 브라우저에만 저장됩니다. 브라우저 데이터를 지우면 함께 사라집니다.</p>
+    </footer>
+  </main>
+</body>
+</html>
