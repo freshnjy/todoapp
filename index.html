@@ -45,9 +45,18 @@
       <button class="tab" type="button" data-filter="growth" aria-pressed="false">성장 <span class="tab-count">0</span></button>
     </nav>
 
+    <!-- 상태 필터 (카테고리 탭과 함께 적용) -->
+    <nav class="tabs status-tabs" id="status-tabs" aria-label="상태 필터">
+      <button class="tab is-active" type="button" data-status="all" aria-pressed="true">전체</button>
+      <button class="tab" type="button" data-status="active" aria-pressed="false">미완료</button>
+      <button class="tab" type="button" data-status="done" aria-pressed="false">완료</button>
+    </nav>
+
     <!-- 할 일 목록 (app.js의 render()가 채움) -->
     <ul class="todo-list" id="todo-list"></ul>
-    <p class="empty" id="empty" hidden>오늘 할 일을 추가해 보세요</p>
+    <p class="empty" id="empty" hidden></p>
+
+    <button class="btn btn-danger btn-clear" id="clear-done" type="button" hidden>완료 항목 지우기</button>
 
     <footer class="footer">
       <p>데이터는 이 브라우저에만 저장됩니다. 브라우저 데이터를 지우면 함께 사라집니다.</p>

@@ -197,6 +197,17 @@ select {
   font-weight: 600;
 }
 
+/* 상태 필터: 카테고리 탭과 구분되게 테두리만 강조 */
+.status-tabs {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.status-tabs .tab.is-active {
+  background: var(--surface);
+  color: var(--primary);
+  border: 2px solid var(--primary);
+}
+
 .tab-count {
   font-size: 12px;
   opacity: 0.8;
@@ -301,6 +312,12 @@ select {
   margin: 24px 0;
   color: var(--text-sub);
   text-align: center;
+}
+
+/* 완료 항목 지우기 */
+.btn-clear {
+  display: block;
+  margin: 16px auto 0;
 }
 
 /* 하단 안내 */

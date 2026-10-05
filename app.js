@@ -12,7 +12,9 @@ const input = document.getElementById('add-input');
 const categorySelect = document.getElementById('add-category');
 const listEl = document.getElementById('todo-list');
 const emptyEl = document.getElementById('empty');
+const clearDoneBtn = document.getElementById('clear-done');
 const tabsEl = document.getElementById('tabs');
+const statusTabsEl = document.getElementById('status-tabs');
 const progressBar = document.getElementById('progress-bar');
 const progressFill = document.getElementById('progress-fill');
 const progressText = document.getElementById('progress-text');
@@ -20,8 +22,9 @@ const progressText = document.getElementById('progress-text');
 // 상태: 할 일 배열, 마지막 접속 날짜 (이 둘만 저장)
 let todos = loadTodos();
 let lastDate = localStorage.getItem(LAST_DATE_KEY);
-// 화면 상태: 선택한 탭, 수정 중인 항목 { id, text, category } (저장하지 않음)
+// 화면 상태: 선택한 탭, 상태 필터, 수정 중인 항목 { id, text, category } (저장하지 않음)
 let currentFilter = 'all';
+let statusFilter = 'all';
 let editing = null;
 
 // localStorage에서 불러오기 (깨져 있으면 빈 목록)
@@ -84,6 +87,13 @@ function toggleTodo(id) {
   const [todo] = todos.splice(index, 1);
   todo.done = !todo.done;
   todos.push(todo);
+  commit();
+}
+
+// 완료 항목 일괄 삭제 (모든 카테고리)
+function clearDone() {
+  todos = todos.filter((todo) => !todo.done);
+  if (editing && !todos.some((todo) => todo.id === editing.id)) editing = null;
   commit();
 }
 
@@ -246,7 +256,16 @@ function renderTabs() {
   });
 }
 
-// 선택한 탭 기준 진행률
+// 상태 필터 버튼: 선택 표시
+function renderStatusTabs() {
+  statusTabsEl.querySelectorAll('.tab').forEach((tab) => {
+    const isActive = tab.dataset.status === statusFilter;
+    tab.classList.toggle('is-active', isActive);
+    tab.setAttribute('aria-pressed', String(isActive));
+  });
+}
+
+// 선택한 탭 기준 진행률 (상태 필터와 상관없이 카테고리 기준)
 function renderProgress(visible) {
   const total = visible.length;
   const doneCount = visible.filter((todo) => todo.done).length;
@@ -267,15 +286,21 @@ function render() {
     ? todos
     : todos.filter((todo) => todo.category === currentFilter);
   const ordered = [
-    ...visible.filter((todo) => !todo.done),
-    ...visible.filter((todo) => todo.done),
+    ...(statusFilter === 'done' ? [] : visible.filter((todo) => !todo.done)),
+    ...(statusFilter === 'active' ? [] : visible.filter((todo) => todo.done)),
   ];
   listEl.replaceChildren(...ordered.map((todo) => (
     editing && editing.id === todo.id ? createEditItem(todo) : createTodoItem(todo)
   )));
-  emptyEl.hidden = visible.length > 0;
+  // 빈 안내: 할 일 자체가 없을 때와 상태 필터로 걸러져 없을 때를 구분
+  emptyEl.hidden = ordered.length > 0;
+  emptyEl.textContent = visible.length === 0
+    ? '오늘 할 일을 추가해 보세요'
+    : '해당하는 할 일이 없어요';
+  clearDoneBtn.hidden = !todos.some((todo) => todo.done);
 
   renderTabs();
+  renderStatusTabs();
   renderProgress(visible);
 }
 
@@ -329,6 +354,21 @@ tabsEl.addEventListener('click', (event) => {
   if (!tab) return;
   currentFilter = tab.dataset.filter;
   render();
+});
+
+statusTabsEl.addEventListener('click', (event) => {
+  const tab = event.target.closest('.tab');
+  if (!tab) return;
+  statusFilter = tab.dataset.status;
+  render();
+});
+
+clearDoneBtn.addEventListener('click', () => {
+  const doneCount = todos.filter((todo) => todo.done).length;
+  if (doneCount === 0) return;
+  if (!confirm(`완료한 할 일 ${doneCount}개를 모두 지울까요?\n(모든 카테고리의 완료 항목이 지워집니다)`)) return;
+  clearDone();
+  input.focus();
 });
 
 listEl.addEventListener('change', (event) => {
