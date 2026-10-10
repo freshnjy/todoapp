@@ -155,7 +155,7 @@ function createWeekGrid(routine) {
   return grid;
 }
 
-// 월간: 1일부터 번호순으로 늘어놓는다. 한 줄의 칸 수는 화면 폭에 따라 CSS가 정한다 (좁으면 8칸, 넓으면 16칸)
+// 월간: 1일부터 번호순으로 늘어놓는다. 한 줄의 칸 수는 화면 폭에 따라 CSS가 정한다 (좁으면 11칸, 넓으면 16칸)
 function createMonthGrid(routine) {
   const grid = document.createElement('div');
   grid.className = 'habit-grid habit-month';

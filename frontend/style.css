@@ -793,9 +793,20 @@ select {
   grid-template-columns: repeat(7, 1fr);
 }
 
-/* 월간: 휴대폰에서는 누를 수 있게 한 줄 8칸, 넓은 화면에서는 종이 트래커처럼 한 줄 16칸 */
+/* 월간: 휴대폰에서는 한 줄 11칸(세 줄), 넓은 화면에서는 종이 트래커처럼 한 줄 16칸(두 줄) */
 .habit-month {
-  grid-template-columns: repeat(8, 1fr);
+  grid-template-columns: repeat(11, 1fr);
+  gap: 3px;
+}
+
+.habit-month .habit-mark {
+  min-height: 40px;
+  border-radius: 8px;
+}
+
+.habit-month .habit-num {
+  font-size: 14px;
+  letter-spacing: -0.03em;
 }
 
 @media (min-width: 560px) {
