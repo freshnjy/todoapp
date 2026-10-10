@@ -15,6 +15,9 @@
       <p class="header-date" id="today"></p>
     </header>
 
+    <!-- 서버와 연결하지 못했을 때의 안내 (app.js가 채움) -->
+    <p class="notice" id="notice" role="alert" hidden></p>
+
     <!-- 통계: 선택한 탭 진행률 + 카테고리별 현황 -->
     <section class="card stats" id="stats" data-filter="all" aria-label="진행 현황">
       <div class="stats-head">
@@ -82,7 +85,7 @@
     <button class="btn btn-danger btn-clear" id="clear-done" type="button" hidden>완료 항목 지우기</button>
 
     <footer class="footer">
-      <p>데이터는 이 브라우저에만 저장됩니다. 브라우저 데이터를 지우면 함께 사라집니다.</p>
+      <button class="btn btn-small btn-logout" id="logout" type="button">로그아웃</button>
     </footer>
   </main>
 </body>

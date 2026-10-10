@@ -1,7 +1,5 @@
 'use strict';
 
-const STORAGE_KEY = 'todos';
-const LAST_DATE_KEY = 'lastDate';
 const MAX_LENGTH = 100;
 const CATEGORY_LABELS = { work: '업무', personal: '개인', growth: '성장' };
 const CATEGORY_VALUES = Object.keys(CATEGORY_LABELS);
@@ -41,10 +39,17 @@ const statsEl = document.getElementById('stats');
 const statsLabel = document.getElementById('stats-label');
 const statsPercent = document.getElementById('stats-percent');
 const statsListEl = document.getElementById('stats-list');
+const noticeEl = document.getElementById('notice');
+const logoutBtn = document.getElementById('logout');
 
-// 상태: 할 일 배열, 마지막 접속 날짜 (이 둘만 저장)
-let todos = loadTodos();
-let lastDate = localStorage.getItem(LAST_DATE_KEY);
+const CONNECT_ERROR = '서버와 연결하지 못했어요. 잠시 후 다시 시도해 주세요.';
+
+// 상태: 서버에서 받은 할 일 배열. 저장은 서버가 한다 (docs/api.md)
+let todos = [];
+// 처음 불러오기가 끝났는지 (끝나기 전에는 "불러오는 중"을 보여 준다)
+let loaded = false;
+// 서버에 바꾸는 중인지 (끝날 때까지 다른 변경을 받지 않는다)
+let busy = false;
 // 화면 상태: 선택한 탭, 상태 필터, 수정 중인 항목 { id, text, category } (저장하지 않음)
 let currentFilter = 'all';
 let statusFilter = 'all';
@@ -52,36 +57,78 @@ let editing = null;
 // 사용자가 카테고리를 직접 고르면 이번 할 일은 자동 분류를 멈춘다
 let categoryLocked = false;
 
-// localStorage에서 불러오기 (깨져 있으면 빈 목록)
-function loadTodos() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (raw === null) return [];
-  try {
-    const data = JSON.parse(raw);
-    if (!Array.isArray(data)) throw new Error('todos가 배열이 아닙니다.');
-    return data;
-  } catch (error) {
-    console.error('저장된 할 일을 불러오지 못해 빈 목록으로 시작합니다.', error);
-    return [];
+// 서버 호출. 주소는 상대 경로로 쓴다 (nginx가 /todo/ 접두사를 뗀다).
+// 로그인이 풀렸으면(401) 로그인 화면으로 보낸다.
+async function api(method, path, body) {
+  const options = { method, credentials: 'same-origin' };
+  if (body !== undefined) {
+    options.headers = { 'Content-Type': 'application/json' };
+    options.body = JSON.stringify(body);
   }
+  const response = await fetch(path, options);
+  if (response.status === 401) {
+    window.location.href = 'login.html';
+    const error = new Error('로그인이 필요합니다.');
+    error.unauthorized = true;
+    throw error;
+  }
+  if (!response.ok) throw new Error(`서버 응답 ${response.status}`);
+  return response.status === 204 ? null : response.json();
 }
 
-function save() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
-  if (lastDate !== null) localStorage.setItem(LAST_DATE_KEY, lastDate);
+function showNotice(message) {
+  noticeEl.textContent = message;
+  noticeEl.hidden = false;
 }
 
-// 상태 변경 후 항상 이 함수로 저장하고 다시 그린다
-function commit() {
-  save();
+function clearNotice() {
+  noticeEl.hidden = true;
+  noticeEl.textContent = '';
+}
+
+// 서버의 목록으로 화면을 다시 그린다 (날짜가 바뀌어 정리된 것, 다른 기기에서 바꾼 것 포함)
+async function refresh() {
+  const data = await api('GET', 'api/todos');
+  todos = data.todos.map((todo) => ({
+    id: String(todo.id),
+    text: todo.text,
+    category: todo.category,
+    done: todo.done,
+  }));
+  if (editing && !todos.some((todo) => todo.id === editing.id)) editing = null;
+  loaded = true;
   render();
 }
 
-// Date.now() 기반 고유 ID (같은 밀리초에 겹치면 1씩 올림)
-function createId() {
-  let id = Date.now();
-  while (todos.some((todo) => todo.id === String(id))) id += 1;
-  return String(id);
+async function load() {
+  try {
+    await refresh();
+    clearNotice();
+  } catch (error) {
+    if (!error.unauthorized) showNotice(CONNECT_ERROR);
+  }
+}
+
+// 서버에 바꾼 뒤 목록을 다시 받는다. 성공하면 true.
+// 실패하면 화면에 알리고, 화면을 서버에 저장된 상태(마지막으로 받은 목록)로 되돌린다.
+async function change(request) {
+  if (busy) {
+    render();
+    return false;
+  }
+  busy = true;
+  try {
+    await request();
+    await refresh();
+    clearNotice();
+    return true;
+  } catch (error) {
+    if (!error.unauthorized) showNotice(CONNECT_ERROR);
+    render();
+    return false;
+  } finally {
+    busy = false;
+  }
 }
 
 function normalizeCategory(category) {
@@ -89,37 +136,23 @@ function normalizeCategory(category) {
 }
 
 function addTodo(text, category) {
-  todos.unshift({
-    id: createId(),
-    text,
-    category: normalizeCategory(category),
-    done: false,
-    createdAt: new Date().toISOString(),
-  });
-  commit();
+  return change(() => api('POST', 'api/todos', { text, category: normalizeCategory(category) }));
 }
 
 function deleteTodo(id) {
-  todos = todos.filter((todo) => todo.id !== id);
-  if (editing && editing.id === id) editing = null;
-  commit();
+  return change(() => api('DELETE', `api/todos/${id}`));
 }
 
-// 완료 전환 후 배열 맨 끝으로 옮겨 각 그룹의 맨 아래에 오게 한다
+// 완료 전환. 서버가 그 항목을 맨 끝으로 옮겨 각 그룹의 맨 아래에 오게 한다
 function toggleTodo(id) {
-  const index = todos.findIndex((todo) => todo.id === id);
-  if (index === -1) return;
-  const [todo] = todos.splice(index, 1);
-  todo.done = !todo.done;
-  todos.push(todo);
-  commit();
+  const todo = todos.find((item) => item.id === id);
+  if (!todo) return Promise.resolve(false);
+  return change(() => api('PATCH', `api/todos/${id}`, { done: !todo.done }));
 }
 
 // 완료 항목 일괄 삭제 (모든 카테고리)
 function clearDone() {
-  todos = todos.filter((todo) => !todo.done);
-  if (editing && !todos.some((todo) => todo.id === editing.id)) editing = null;
-  commit();
+  return change(() => api('POST', 'api/todos/clear-done'));
 }
 
 // 수정 시작 (한 번에 한 항목만)
@@ -135,38 +168,17 @@ function cancelEdit() {
   render();
 }
 
-// 빈 값이면 저장하지 않고 수정 상태를 유지한다
-function saveEdit() {
+// 빈 값이거나 저장에 실패하면 수정 상태를 유지한다
+async function saveEdit() {
   if (!editing) return false;
+  const { id } = editing;
   const text = editing.text.trim().slice(0, MAX_LENGTH);
   if (text === '') return false;
-  const todo = todos.find((item) => item.id === editing.id);
-  if (todo) {
-    todo.text = text;
-    todo.category = normalizeCategory(editing.category);
-  }
-  editing = null;
-  commit();
-  return true;
-}
-
-// 오늘 날짜 YYYY-MM-DD (기기 현지 시간, toISOString은 UTC라 쓰지 않음)
-function getTodayString() {
-  const now = new Date();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${now.getFullYear()}-${month}-${day}`;
-}
-
-// 날짜가 바뀌었으면 완료 항목만 지운다 (처음 쓰는 날은 날짜만 기록)
-function cleanUpIfNewDay() {
-  const today = getTodayString();
-  if (lastDate === today) return false;
-  if (lastDate !== null) {
-    todos = todos.filter((todo) => !todo.done);
-    if (editing && !todos.some((todo) => todo.id === editing.id)) editing = null;
-  }
-  lastDate = today;
+  const category = normalizeCategory(editing.category);
+  const saved = await change(() => api('PATCH', `api/todos/${id}`, { text, category }));
+  if (!saved) return false;
+  if (editing && editing.id === id) editing = null;
+  render();
   return true;
 }
 
@@ -337,9 +349,9 @@ function render() {
   )));
   // 빈 안내: 할 일 자체가 없을 때와 상태 필터로 걸러져 없을 때를 구분
   emptyEl.hidden = ordered.length > 0;
-  emptyEl.textContent = visible.length === 0
-    ? '오늘 할 일을 추가해 보세요'
-    : '해당하는 할 일이 없어요';
+  if (!loaded) emptyEl.textContent = '불러오는 중이에요';
+  else if (visible.length === 0) emptyEl.textContent = '오늘 할 일을 추가해 보세요';
+  else emptyEl.textContent = '해당하는 할 일이 없어요';
   clearDoneBtn.hidden = !todos.some((todo) => todo.done);
 
   renderTabs();
@@ -366,9 +378,9 @@ function beginEdit(id) {
   focusEditInput(id);
 }
 
-function endEdit(id, shouldSave) {
+async function endEdit(id, shouldSave) {
   if (shouldSave) {
-    if (!saveEdit()) {
+    if (!(await saveEdit())) {
       focusEditInput(id);
       return;
     }
@@ -411,7 +423,7 @@ categorySelect.addEventListener('change', () => {
   categorySelect.classList.remove('is-auto');
 });
 
-form.addEventListener('submit', (event) => {
+form.addEventListener('submit', async (event) => {
   event.preventDefault();
   const text = input.value.trim().slice(0, MAX_LENGTH);
   if (text === '') {
@@ -419,7 +431,8 @@ form.addEventListener('submit', (event) => {
     input.focus();
     return;
   }
-  addTodo(text, categorySelect.value);
+  // 저장에 실패하면 입력한 글을 그대로 둔다
+  if (!(await addTodo(text, categorySelect.value))) return;
   input.value = '';
   categoryLocked = false;
   categorySelect.classList.remove('is-auto');
@@ -441,18 +454,18 @@ statusTabsEl.addEventListener('click', (event) => {
   render();
 });
 
-clearDoneBtn.addEventListener('click', () => {
+clearDoneBtn.addEventListener('click', async () => {
   const doneCount = todos.filter((todo) => todo.done).length;
   if (doneCount === 0) return;
   if (!confirm(`완료한 할 일 ${doneCount}개를 모두 지울까요?\n(모든 카테고리의 완료 항목이 지워집니다)`)) return;
-  clearDone();
+  await clearDone();
   input.focus();
 });
 
-listEl.addEventListener('change', (event) => {
+listEl.addEventListener('change', async (event) => {
   if (event.target.dataset.action !== 'toggle') return;
   const id = event.target.closest('.todo-item').dataset.id;
-  toggleTodo(id);
+  await toggleTodo(id);
   restoreFocus(id, 'toggle');
 });
 
@@ -478,7 +491,7 @@ listEl.addEventListener('keydown', (event) => {
   endEdit(editing.id, false);
 });
 
-listEl.addEventListener('click', (event) => {
+listEl.addEventListener('click', async (event) => {
   const button = event.target.closest('[data-action]');
   if (!button || button.tagName !== 'BUTTON') return;
   const id = button.closest('.todo-item').dataset.id;
@@ -490,7 +503,7 @@ listEl.addEventListener('click', (event) => {
     const todo = todos.find((item) => item.id === id);
     if (!todo) return;
     if (!confirm(`이 할 일을 삭제할까요?\n\n${todo.text}`)) return;
-    deleteTodo(id);
+    await deleteTodo(id);
     input.focus();
   }
 });
@@ -502,12 +515,23 @@ listEl.addEventListener('dblclick', (event) => {
   beginEdit(text.closest('.todo-item').dataset.id);
 });
 
-// 화면에 다시 돌아오면 날짜 확인 (자정을 넘겨 켜 둔 경우)
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState !== 'visible') return;
-  if (cleanUpIfNewDay()) commit();
+logoutBtn.addEventListener('click', async () => {
+  try {
+    await fetch('api/session', { method: 'DELETE', credentials: 'same-origin' });
+  } catch (error) {
+    showNotice(CONNECT_ERROR);
+    return;
+  }
+  window.location.href = 'login.html';
 });
 
-// 시작: 날짜 확인 → 저장 → 그리기
-cleanUpIfNewDay();
-commit();
+// 화면에 다시 돌아오면 서버의 목록을 다시 받는다 (자정을 넘긴 경우, 다른 기기에서 바꾼 경우).
+// 수정 중이거나 저장 중일 때는 건드리지 않는다.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || busy || editing) return;
+  load();
+});
+
+// 시작: 빈 틀을 먼저 그리고 서버에서 불러온다
+render();
+load();

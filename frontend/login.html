@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>로그인 · 오늘 할 일</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="login.js" defer></script>
+</head>
+<body>
+  <main class="app login">
+    <form class="card login-form" id="login-form" novalidate>
+      <h1 class="header-title">오늘 할 일</h1>
+      <label class="login-label" for="password">비밀번호</label>
+      <input class="add-input" id="password" name="password" type="password"
+             autocomplete="current-password" required autofocus>
+      <p class="login-error" id="login-error" aria-live="polite"></p>
+      <button class="btn btn-primary" id="login-button" type="submit">들어가기</button>
+    </form>
+  </main>
+</body>
+</html>

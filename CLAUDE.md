@@ -2,7 +2,7 @@
 
 ## 이 프로젝트
 혼자 쓰는 개인용 할 일 관리 웹앱. 오늘 할 일을 적고 지우는 화면에, 반복되는 루틴과 해빗트래커를 더한다.
-작업 전에 `docs/PRD.md`를 읽는다. 작업 순서는 `docs/tasks.md`를 따른다. 서버 배포는 `docs/deploy.md`.
+작업 전에 `docs/PRD.md`와 `docs/api.md`를 읽는다. 작업 순서는 `docs/tasks.md`를 따른다. 서버 배포는 `docs/deploy.md`.
 
 ## 기술 선택
 - 백엔드: Python 3.11 이상, FastAPI, uvicorn. 저장소는 표준 라이브러리 `sqlite3`.
@@ -12,11 +12,11 @@
 
 ## 폴더 구조
 ```
-backend/app/        FastAPI 앱 (main.py. 1-2단계부터 auth.py, store.py, todos.py)
-frontend/           index.html, style.css, app.js (1-2단계부터 login.html)
+backend/app/        FastAPI 앱 (main.py, auth.py, store.py, todos.py)
+frontend/           index.html, login.html, style.css, app.js, login.js
 tests/              pytest
 deploy/             nginx, systemd 예시 (실제 값 없음)
-docs/               PRD.md, tasks.md, deploy.md
+docs/               PRD.md, tasks.md, api.md, deploy.md
 ```
 
 ## 배포 형태 (알아 둘 것)
@@ -27,7 +27,7 @@ docs/               PRD.md, tasks.md, deploy.md
 
 ## 반드시 지킬 것
 - 비밀 값(비밀번호, 세션 비밀 값)은 환경 변수로만 읽는다. 코드, 테스트, 문서, 커밋에 실제 값을 적지 않는다. `.env`는 커밋하지 않는다.
-- 로그인이 생긴 뒤(1-2단계부터)에는 인증 없는 요청에 데이터를 주지 않는다. 공개 경로는 로그인 화면, 정적 파일(CSS, JS, 아이콘), `api/health`뿐이다.
+- 인증 없는 요청에는 데이터를 주지 않는다. 공개 경로는 로그인 화면, 정적 파일(CSS, JS, 아이콘), `api/health`뿐이다.
 - 로그에 할 일 내용을 남기지 않는다.
 - 날짜는 Asia/Seoul 기준이다. "오늘"이 무엇인지는 서버가 정한다 (기기마다 달라지지 않게).
 
@@ -47,7 +47,8 @@ docs/               PRD.md, tasks.md, deploy.md
 ```
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt
-uvicorn backend.app.main:app --reload --port 8003
+cp .env.example .env   # 값을 채운다. 로컬에서는 쿠키 경로 /, Secure false, 데이터 폴더 ./data
+uvicorn backend.app.main:app --reload --port 8003 --env-file .env
 pytest
 ```
-Windows PowerShell에서는 `.\.venv\Scripts\Activate.ps1`로 켠다. 브라우저에서 `http://localhost:8003`을 연다.
+Windows PowerShell에서는 `.\.venv\Scripts\Activate.ps1`로, Git Bash에서는 `source .venv/Scripts/activate`로 켠다. 브라우저에서 `http://localhost:8003`을 연다.

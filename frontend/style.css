@@ -492,3 +492,56 @@ select {
 .footer p {
   margin: 0;
 }
+
+/* 로그아웃 */
+.btn-logout {
+  background: transparent;
+  color: var(--text-sub);
+}
+
+/* 서버와 연결하지 못했을 때의 안내 */
+.notice {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  background: #fdecec;
+  border: 1px solid #f3c2c2;
+  border-radius: var(--radius-sm);
+  color: #a12626;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* 로그인 화면 */
+.login {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 24px 20px;
+}
+
+.login-label {
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-sub);
+}
+
+.login-error {
+  min-height: 21px;
+  margin: 0;
+  font-size: 14px;
+  color: var(--danger);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
