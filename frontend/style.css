@@ -80,22 +80,31 @@ select {
   box-shadow: var(--shadow);
 }
 
-/* 헤더 */
+/* 헤더: 왼쪽에 앱 이름과 날짜, 오른쪽에 화면 전환 */
 .header {
-  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.header-text {
+  min-width: 0;
 }
 
 .header-title {
   margin: 0;
-  font-size: 26px;
+  font-size: 22px;
   font-weight: 800;
   letter-spacing: -0.02em;
+  line-height: 1.25;
 }
 
 .header-date {
-  margin: 2px 0 0;
+  margin: 0;
   color: var(--text-sub);
-  font-size: 14px;
+  font-size: 13px;
 }
 
 /* 통계 카드 */
@@ -669,37 +678,64 @@ select {
   flex-basis: 100%;
 }
 
-/* 화면 전환(오늘 / 습관)과 습관의 기간(주간 / 월간): 상태 필터와 같은 모양, 두 칸 */
+/* 화면 전환(오늘 / 습관)과 습관의 기간(주간 / 월간): 상태 필터와 같은 모양, 두 칸.
+   헤더와 도구 줄 안에 들어가도록 폭을 정해 둔다 */
 .view-tabs,
 .habit-modes {
   grid-template-columns: repeat(2, 1fr);
+  flex-shrink: 0;
+  margin-bottom: 0;
 }
 
 .view-tabs {
-  margin-bottom: 16px;
+  width: 148px;
 }
 
-/* 기간 넘기기 */
-.habit-nav {
+.habit-modes {
+  width: 124px;
+}
+
+.view-tabs .tab,
+.habit-modes .tab {
+  min-height: 40px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+/* 습관 화면의 도구 줄: 기간 넘기기 + 주간/월간 */
+.habit-toolbar {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
+}
+
+.habit-nav {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 4px;
+  min-width: 0;
 }
 
 .habit-nav .btn {
   flex-shrink: 0;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
   font-size: 20px;
   line-height: 1;
 }
 
 .habit-period {
   flex: 1;
+  min-width: 0;
   margin: 0;
   text-align: center;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 800;
   letter-spacing: -0.01em;
+  white-space: nowrap;
 }
 
 /* 루틴 카드 */

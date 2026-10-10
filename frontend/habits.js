@@ -71,14 +71,12 @@ function habitRange() {
   return { start, end: addDays(monthStart(anchor, 1), -1) };
 }
 
+// 기간 제목. 넘기기 버튼, 주간/월간과 한 줄에 들어가도록 짧게 쓴다: "10.5 ~ 10.11", "2026년 10월"
 function habitPeriodLabel(range) {
   const start = toDate(range.start);
   const end = toDate(range.end);
   if (habitMode === 'month') return `${start.getUTCFullYear()}년 ${start.getUTCMonth() + 1}월`;
-  const endText = start.getUTCMonth() === end.getUTCMonth()
-    ? `${end.getUTCDate()}일`
-    : `${end.getUTCMonth() + 1}월 ${end.getUTCDate()}일`;
-  return `${start.getUTCMonth() + 1}월 ${start.getUTCDate()}일 ~ ${endText}`;
+  return `${start.getUTCMonth() + 1}.${start.getUTCDate()} ~ ${end.getUTCMonth() + 1}.${end.getUTCDate()}`;
 }
 
 // ---------- 서버 ----------

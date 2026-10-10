@@ -11,17 +11,17 @@
 </head>
 <body>
   <main class="app">
-    <!-- 헤더: 앱 이름, 오늘 날짜 -->
+    <!-- 헤더: 앱 이름과 오늘 날짜, 오른쪽에 화면 전환(오늘 할 일 / 습관) -->
     <header class="header">
-      <h1 class="header-title">오늘 할 일</h1>
-      <p class="header-date" id="today"></p>
+      <div class="header-text">
+        <h1 class="header-title">오늘 할 일</h1>
+        <p class="header-date" id="today"></p>
+      </div>
+      <nav class="tabs status-tabs view-tabs" id="view-tabs" aria-label="화면 전환">
+        <button class="tab is-active" type="button" data-view="today" aria-pressed="true">오늘</button>
+        <button class="tab" type="button" data-view="habits" aria-pressed="false">습관</button>
+      </nav>
     </header>
-
-    <!-- 화면 전환: 오늘 할 일 / 습관(해빗트래커) -->
-    <nav class="tabs status-tabs view-tabs" id="view-tabs" aria-label="화면 전환">
-      <button class="tab is-active" type="button" data-view="today" aria-pressed="true">오늘</button>
-      <button class="tab" type="button" data-view="habits" aria-pressed="false">습관</button>
-    </nav>
 
     <!-- 서버와 연결하지 못했을 때의 안내 (app.js가 채움) -->
     <p class="notice" id="notice" role="alert" hidden></p>
@@ -112,14 +112,17 @@
 
     <!-- 습관: 루틴별 달성 기록 (habits.js가 채움) -->
     <section id="view-habits" aria-label="습관" hidden>
-      <nav class="tabs status-tabs habit-modes" id="habit-modes" aria-label="보기 기간">
-        <button class="tab is-active" type="button" data-mode="week" aria-pressed="true">주간</button>
-        <button class="tab" type="button" data-mode="month" aria-pressed="false">월간</button>
-      </nav>
-      <div class="habit-nav">
-        <button class="btn" id="habit-prev" type="button" aria-label="이전 기간">‹</button>
-        <p class="habit-period" id="habit-period" aria-live="polite"></p>
-        <button class="btn" id="habit-next" type="button" aria-label="다음 기간">›</button>
+      <!-- 한 줄에: 기간 넘기기 + 주간/월간 -->
+      <div class="habit-toolbar">
+        <div class="habit-nav">
+          <button class="btn" id="habit-prev" type="button" aria-label="이전 기간">‹</button>
+          <p class="habit-period" id="habit-period" aria-live="polite"></p>
+          <button class="btn" id="habit-next" type="button" aria-label="다음 기간">›</button>
+        </div>
+        <nav class="tabs status-tabs habit-modes" id="habit-modes" aria-label="보기 기간">
+          <button class="tab is-active" type="button" data-mode="week" aria-pressed="true">주간</button>
+          <button class="tab" type="button" data-mode="month" aria-pressed="false">월간</button>
+        </nav>
       </div>
       <ul class="habit-list" id="habit-list"></ul>
       <p class="empty" id="habit-empty" hidden></p>
