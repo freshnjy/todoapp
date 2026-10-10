@@ -939,3 +939,245 @@ button.habit-mark {
   font-weight: 600;
   text-align: center;
 }
+
+/* =====================================================================
+   데스크톱 화면
+   위쪽은 모바일 스타일 그대로이고, 아래는 넓은 화면에서만 덮어쓴다.
+   레이아웃만 CSS로 바꾼다. HTML과 JS는 모바일과 같다.
+   ===================================================================== */
+
+/* 태블릿·작은 노트북: 틀을 넓히고 마우스에 맞게 조금 촘촘하게 */
+@media (min-width: 900px) {
+  :root {
+    --touch: 40px;
+  }
+
+  .app {
+    max-width: 1440px;
+    padding: 28px 40px 40px;
+  }
+
+  .app.login {
+    max-width: 440px;
+  }
+
+  .header {
+    margin-bottom: 24px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .header-title {
+    font-size: 28px;
+  }
+
+  .header-date {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .view-tabs {
+    width: 200px;
+  }
+
+  .view-tabs .tab,
+  .habit-modes .tab {
+    min-height: 42px;
+    font-size: 16px;
+  }
+
+  .habit-modes {
+    width: 170px;
+  }
+
+  /* 오늘 화면: 왼쪽 칼럼(현황·입력·필터) + 오른쪽 목록 */
+  #view-today {
+    display: grid;
+    grid-template-columns: 380px minmax(0, 1fr);
+    grid-auto-rows: min-content;
+    align-content: start;
+    column-gap: 32px;
+    align-items: start;
+  }
+
+  #view-today > .stats,
+  #view-today > .add-form,
+  #view-today > #tabs,
+  #view-today > #status-tabs,
+  #view-today > #clear-done {
+    grid-column: 1;
+  }
+
+  #view-today > #lists {
+    grid-column: 2;
+    grid-row: 1 / span 5;
+    min-width: 0;
+  }
+
+  /* 왼쪽 칼럼은 목록을 스크롤해도 화면에 붙어 있게 */
+  #view-today > .stats {
+    position: sticky;
+    top: 16px;
+    z-index: 1;
+  }
+
+  #view-today > #clear-done {
+    margin: 4px 0 0;
+    width: 100%;
+    border-color: var(--border);
+    background: var(--surface);
+  }
+
+  .stats-percent {
+    font-size: 40px;
+  }
+
+  .add-form {
+    margin-bottom: 16px;
+  }
+
+  .add-input,
+  .add-category {
+    font-size: 15px;
+  }
+
+  .tab:hover:not(.is-active) {
+    border-color: #b9c1ce;
+  }
+
+  .btn:hover:not(:disabled) {
+    border-color: #b9c1ce;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
+
+  .section-title {
+    margin-bottom: 10px;
+    font-size: 17px;
+  }
+
+  .routine-section {
+    margin-bottom: 28px;
+  }
+
+  .todo-item {
+    margin-bottom: 0;
+  }
+
+  .todo-item:hover {
+    background: #f9fafc;
+  }
+
+  .todo-text {
+    font-size: 16px;
+  }
+
+  /* 목록은 넓이에 맞춰 여러 칼럼으로 */
+  #todo-list,
+  #routine-list,
+  #rest-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 10px 14px;
+  }
+
+  #rest-list {
+    margin-top: 6px;
+  }
+
+  /* 수정 중인 항목은 한 줄 전체를 쓴다 */
+  #todo-list > .is-editing,
+  #routine-list > .is-editing,
+  #rest-list > .is-editing {
+    grid-column: 1 / -1;
+  }
+
+  .empty {
+    padding: 56px 16px;
+  }
+
+  /* 습관 화면 */
+  .habit-toolbar {
+    margin-bottom: 18px;
+  }
+
+  .habit-nav {
+    flex: 0 1 380px;
+    margin-right: auto;
+  }
+
+  .habit-period {
+    font-size: 20px;
+  }
+
+  .habit-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(560px, 1fr));
+    gap: 14px;
+    align-items: start;
+  }
+
+  .habit-card {
+    margin-bottom: 0;
+    padding: 16px 18px 18px;
+  }
+
+  .habit-card .todo-text {
+    font-size: 18px;
+  }
+
+  .habit-streak {
+    font-size: 17px;
+  }
+
+  .habit-metrics {
+    font-size: 14px;
+  }
+
+  .habit-mark:not(.is-off):not(.is-upcoming):not(.is-done):hover {
+    border-color: var(--text);
+  }
+
+  button.habit-mark.is-done:hover::before {
+    filter: brightness(1.12);
+  }
+
+  .habit-legend {
+    margin-top: 20px;
+    font-size: 14px;
+  }
+
+  .footer {
+    margin-top: 40px;
+  }
+}
+
+/* 큰 모니터: 칼럼을 더 넓게 */
+@media (min-width: 1360px) {
+  #view-today {
+    grid-template-columns: 420px minmax(0, 1fr);
+    column-gap: 40px;
+  }
+
+  #todo-list,
+  #routine-list,
+  #rest-list {
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  }
+
+  .habit-list {
+    grid-template-columns: repeat(auto-fill, minmax(620px, 1fr));
+  }
+}
+
+@media (min-width: 1800px) {
+  .app {
+    max-width: 1680px;
+  }
+
+  .habit-list {
+    grid-template-columns: repeat(auto-fill, minmax(700px, 1fr));
+  }
+}
