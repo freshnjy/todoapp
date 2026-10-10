@@ -19,7 +19,7 @@ def test_health_is_public(client):
     assert res.json() == {"status": "ok"}
 
 
-@pytest.mark.parametrize("path", ["/login.html", "/login.js", "/style.css", "/app.js"])
+@pytest.mark.parametrize("path", ["/login.html", "/login.js", "/style.css", "/app.js", "/habits.js"])
 def test_login_page_and_assets_are_public(client, path):
     assert client.get(path).status_code == 200
 

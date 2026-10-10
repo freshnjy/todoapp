@@ -131,6 +131,8 @@ async function refresh() {
     done: routine.done_today,
   }));
   serverToday = routineData.today;
+  // 습관 화면을 보고 있으면 그 기간의 기록도 함께 다시 받는다 (habits.js)
+  if (currentView === 'habits') await fetchHabits();
   if (editing && !findItem(editing.kind, editing.id)) editing = null;
   loaded = true;
   render();
@@ -616,6 +618,7 @@ function render() {
   renderTabs(counted);
   renderStatusTabs();
   renderStats(counted, counted.filter(inCategory));
+  renderHabits();
 }
 
 function itemSelector(kind, id) {

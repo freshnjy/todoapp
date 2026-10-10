@@ -12,8 +12,8 @@
 
 ## 폴더 구조
 ```
-backend/app/        FastAPI 앱 (main.py, auth.py, store.py, todos.py)
-frontend/           index.html, login.html, style.css, app.js, login.js
+backend/app/        FastAPI 앱 (main.py, auth.py, store.py, clock.py, rules.py, todos.py, routines.py, habits.py)
+frontend/           index.html, login.html, style.css, app.js, habits.js, login.js
 tests/              pytest
 deploy/             nginx, systemd 예시 (실제 값 없음)
 docs/               PRD.md, tasks.md, api.md, deploy.md

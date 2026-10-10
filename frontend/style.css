@@ -549,9 +549,9 @@ select {
 /* 구역 제목: 오늘의 루틴 / 할 일 */
 .section-title {
   margin: 0 0 8px;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-sub);
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
 }
 
 .routine-section {
@@ -569,7 +569,8 @@ select {
 
 .todo-rule {
   color: var(--text-sub);
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 /* 오늘 해당 없는 루틴: 접어 두는 목록, 체크박스 자리는 비운다 */
@@ -666,4 +667,228 @@ select {
 
 .rule-month .rule-hint {
   flex-basis: 100%;
+}
+
+/* 화면 전환(오늘 / 습관)과 습관의 기간(주간 / 월간): 상태 필터와 같은 모양, 두 칸 */
+.view-tabs,
+.habit-modes {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.view-tabs {
+  margin-bottom: 16px;
+}
+
+/* 기간 넘기기 */
+.habit-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.habit-nav .btn {
+  flex-shrink: 0;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.habit-period {
+  flex: 1;
+  margin: 0;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+/* 루틴 카드 */
+.habit-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.habit-card {
+  margin-bottom: 10px;
+  padding: 12px 12px 14px;
+  box-shadow: inset 4px 0 0 var(--cat, var(--border)), var(--shadow);
+}
+
+.habit-card .todo-text {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.habit-card.is-ended .todo-text {
+  color: var(--text-sub);
+}
+
+.habit-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.habit-metrics {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.habit-streak {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+/* 칸. 주간은 요일 아래 큰 칸 일곱 개, 월간은 1일부터 번호순 */
+.habit-grid {
+  display: grid;
+  gap: 4px;
+}
+
+.habit-week {
+  grid-template-columns: repeat(7, 1fr);
+}
+
+/* 월간: 휴대폰에서는 누를 수 있게 한 줄 8칸, 넓은 화면에서는 종이 트래커처럼 한 줄 16칸 */
+.habit-month {
+  grid-template-columns: repeat(8, 1fr);
+}
+
+@media (min-width: 560px) {
+  .habit-month {
+    grid-template-columns: repeat(16, 1fr);
+    gap: 3px;
+  }
+
+  .habit-month .habit-mark {
+    min-height: 36px;
+  }
+}
+
+.habit-day {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 0;
+}
+
+.habit-dow {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* 하루 칸 */
+.habit-mark {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: var(--touch);
+  padding: 0;
+  background: var(--surface);
+  border: 1.5px solid #b9c1ce;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  line-height: 1;
+}
+
+button.habit-mark {
+  cursor: pointer;
+}
+
+.habit-num,
+.habit-sym {
+  position: relative;
+  font-variant-numeric: tabular-nums;
+}
+
+.habit-num {
+  font-size: 15px;
+}
+
+.habit-sym {
+  font-size: 17px;
+  font-weight: 800;
+}
+
+/* 한 날: 카테고리 색 동그라미 도장. 월간은 그 안에 날짜, 주간은 ✓ */
+.habit-mark.is-done {
+  border-color: transparent;
+  color: var(--primary-text);
+  font-weight: 800;
+}
+
+.habit-mark.is-done::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(38px, calc(100% - 2px));
+  aspect-ratio: 1;
+  background: var(--cat, var(--primary));
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* 번호가 있는 칸(월간)은 번호만 보여 준다 */
+.habit-num + .habit-sym {
+  display: none;
+}
+
+/* 쉬는 날: 테두리 없이 흐리게 */
+.habit-mark.is-off {
+  background: transparent;
+  border-color: transparent;
+  color: #9aa3b0;
+  font-weight: 500;
+}
+
+/* 아직 오지 않은 날: 점선 */
+.habit-mark.is-upcoming {
+  background: transparent;
+  border-color: #cfd5de;
+  border-style: dashed;
+  color: var(--text-sub);
+  font-weight: 600;
+}
+
+/* 오늘: 굵고 진한 테두리 */
+.habit-mark.is-today {
+  border-color: var(--text);
+  border-style: solid;
+  border-width: 2.5px;
+  color: var(--text);
+  font-weight: 800;
+}
+
+.habit-mark.is-done.is-today {
+  color: var(--primary-text);
+}
+
+.habit-mark:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.habit-legend {
+  margin: 14px 0 0;
+  color: var(--text-sub);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
 }

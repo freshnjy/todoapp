@@ -264,3 +264,44 @@ class Store:
                     "DELETE FROM routine_logs WHERE routine_id = ? AND day = ?", (routine_id, day)
                 )
             return "ok"
+
+    def habits(self, start: str, end: str, today: str) -> list[dict[str, Any]]:
+        """start~end 기간에 살아 있던 루틴(종료한 것 포함)의 날짜별 상태, 연속 달성일, 달성 수."""
+        first, last, now = (date.fromisoformat(value) for value in (start, end, today))
+        result = []
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT id, text, category, created_on, ended_on FROM routines "
+                "WHERE created_on <= ? AND (ended_on IS NULL OR ended_on > ?) ORDER BY id",
+                (end, start),
+            ).fetchall()
+            for routine_id, text, category, created_on, ended_on in rows:
+                versions = [
+                    (start_on, json.loads(rule))
+                    for start_on, rule in conn.execute(
+                        "SELECT start_on, rule FROM routine_rules WHERE routine_id = ? ORDER BY start_on",
+                        (routine_id,),
+                    )
+                ]
+                logs = {
+                    row[0]
+                    for row in conn.execute(
+                        "SELECT day FROM routine_logs WHERE routine_id = ?", (routine_id,)
+                    )
+                }
+                days = rules.day_statuses(versions, created_on, ended_on, logs, first, last, now)
+                done = days.count(rules.DONE)
+                result.append(
+                    {
+                        "id": routine_id,
+                        "text": text,
+                        "category": category,
+                        "rule": versions[-1][1],
+                        "ended": ended_on is not None and ended_on <= today,
+                        "days": days,
+                        "streak": rules.streak(versions, created_on, ended_on, logs, now),
+                        "done": done,
+                        "due": done + days.count(rules.MISSED),
+                    }
+                )
+        return result
