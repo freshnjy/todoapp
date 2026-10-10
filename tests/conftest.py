@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.app import auth, todos
+from backend.app import auth, clock
 from backend.app.main import app
 
 # 테스트 전용 가짜 값. 실제 비밀번호와 관계없다.
@@ -37,7 +37,7 @@ def set_today(monkeypatch):
     """서버가 보는 '오늘'을 고정한다. set_today("2026-10-11")로 날짜를 넘긴다."""
 
     def set_day(day: str) -> None:
-        monkeypatch.setattr(todos, "today", lambda: day)
+        monkeypatch.setattr(clock, "today", lambda: day)
 
     set_day(TODAY)
     return set_day

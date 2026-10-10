@@ -61,6 +61,8 @@
         </select>
         <button class="btn btn-primary" type="submit">추가</button>
       </div>
+      <!-- 반복 설정 (app.js가 채움). 반복을 고르면 루틴으로 저장된다 -->
+      <div id="add-rule"></div>
     </form>
 
     <!-- 필터 탭 -->
@@ -78,9 +80,22 @@
       <button class="tab" type="button" data-status="done" aria-pressed="false">완료</button>
     </nav>
 
-    <!-- 할 일 목록 (app.js의 render()가 채움) -->
-    <ul class="todo-list" id="todo-list"></ul>
-    <p class="empty" id="empty" hidden></p>
+    <!-- 목록 (app.js의 render()가 채움). 루틴이 하나도 없으면 루틴 구역과 "할 일" 제목은 감춘다 -->
+    <div id="lists">
+      <section class="routine-section" id="routine-section" aria-labelledby="routine-title" hidden>
+        <h2 class="section-title" id="routine-title">오늘의 루틴</h2>
+        <ul class="todo-list" id="routine-list"></ul>
+        <p class="empty empty-small" id="routine-empty" hidden></p>
+        <details class="rest" id="rest" hidden>
+          <summary id="rest-summary"></summary>
+          <ul class="todo-list" id="rest-list"></ul>
+        </details>
+      </section>
+
+      <h2 class="section-title" id="todo-title" hidden>할 일</h2>
+      <ul class="todo-list" id="todo-list"></ul>
+      <p class="empty" id="empty" hidden></p>
+    </div>
 
     <button class="btn btn-danger btn-clear" id="clear-done" type="button" hidden>완료 항목 지우기</button>
 

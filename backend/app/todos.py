@@ -2,27 +2,18 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, field_validator
 
+from . import clock
 from .store import Store
 
 MAX_LENGTH = 100
 Category = Literal["work", "personal", "growth"]
 
-# 한국은 서머타임이 없어 고정 +09:00으로 둔다 (Windows에는 시간대 자료가 없을 수 있다).
-KST = timezone(timedelta(hours=9))
-
-
-def today() -> str:
-    """서버가 보는 오늘 (Asia/Seoul, YYYY-MM-DD). 기기 시계에 맡기지 않는다."""
-    return datetime.now(KST).date().isoformat()
-
-
-def _clean_text(value: str) -> str:
+def clean_text(value: str) -> str:
     value = value.strip()
     if not value:
         raise ValueError("할 일 내용을 입력해 주세요.")
@@ -37,8 +28,8 @@ class TodoCreate(BaseModel):
 
     @field_validator("text")
     @classmethod
-    def clean_text(cls, value: str) -> str:
-        return _clean_text(value)
+    def check_text(cls, value: str) -> str:
+        return clean_text(value)
 
 
 class TodoUpdate(BaseModel):
@@ -48,8 +39,8 @@ class TodoUpdate(BaseModel):
 
     @field_validator("text")
     @classmethod
-    def clean_text(cls, value: Optional[str]) -> Optional[str]:
-        return None if value is None else _clean_text(value)
+    def check_text(cls, value: Optional[str]) -> Optional[str]:
+        return None if value is None else clean_text(value)
 
 
 router = APIRouter()
@@ -65,7 +56,7 @@ def _not_found() -> HTTPException:
 
 @router.get("/api/todos")
 def list_todos(request: Request) -> dict:
-    day = today()
+    day = clock.today()
     return {"today": day, "todos": _store(request).list_todos(day)}
 
 
@@ -83,7 +74,7 @@ def clear_done(request: Request) -> dict:
 @router.patch("/api/todos/{todo_id}")
 def update_todo(todo_id: int, body: TodoUpdate, request: Request) -> dict:
     todo = _store(request).update_todo(
-        todo_id, today(), text=body.text, category=body.category, done=body.done
+        todo_id, clock.today(), text=body.text, category=body.category, done=body.done
     )
     if todo is None:
         raise _not_found()

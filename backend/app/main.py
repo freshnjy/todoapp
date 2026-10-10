@@ -13,7 +13,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import auth, todos
+from . import auth, routines, todos
 from .store import Store
 
 FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
@@ -73,5 +73,6 @@ async def health() -> dict:
 
 app.include_router(auth.router)
 app.include_router(todos.router)
+app.include_router(routines.router)
 
 app.mount("/", RevalidatingStaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

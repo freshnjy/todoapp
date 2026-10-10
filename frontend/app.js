@@ -23,10 +23,22 @@ const CATEGORY_KEYWORDS = {
   ],
 };
 
+const WEEKDAY_LABELS = ['월', '화', '수', '목', '금', '토', '일']; // 0=월 ... 6=일 (서버와 같은 번호)
+const RULE_TYPE_LABELS = { none: '반복 없음', daily: '매일', weekly: '요일 지정', monthly: '매월' };
+
 const todayEl = document.getElementById('today');
 const form = document.getElementById('add-form');
 const input = document.getElementById('add-input');
 const categorySelect = document.getElementById('add-category');
+const addRuleEl = document.getElementById('add-rule');
+const listsEl = document.getElementById('lists');
+const routineSectionEl = document.getElementById('routine-section');
+const routineListEl = document.getElementById('routine-list');
+const routineEmptyEl = document.getElementById('routine-empty');
+const restEl = document.getElementById('rest');
+const restSummaryEl = document.getElementById('rest-summary');
+const restListEl = document.getElementById('rest-list');
+const todoTitleEl = document.getElementById('todo-title');
 const listEl = document.getElementById('todo-list');
 const emptyEl = document.getElementById('empty');
 const clearDoneBtn = document.getElementById('clear-done');
@@ -44,18 +56,25 @@ const logoutBtn = document.getElementById('logout');
 
 const CONNECT_ERROR = '서버와 연결하지 못했어요. 잠시 후 다시 시도해 주세요.';
 
-// 상태: 서버에서 받은 할 일 배열. 저장은 서버가 한다 (docs/api.md)
+// 상태: 서버에서 받은 할 일과 루틴. 저장은 서버가 한다 (docs/api.md)
 let todos = [];
+// 루틴: { id, text, category, rule, due(오늘 하는 날인지), done(오늘 했는지) }
+let routines = [];
+// 서버가 알려 준 오늘 (YYYY-MM-DD). 루틴을 체크할 때 이 날짜로 기록한다
+let serverToday = null;
 // 처음 불러오기가 끝났는지 (끝나기 전에는 "불러오는 중"을 보여 준다)
 let loaded = false;
 // 서버에 바꾸는 중인지 (끝날 때까지 다른 변경을 받지 않는다)
 let busy = false;
-// 화면 상태: 선택한 탭, 상태 필터, 수정 중인 항목 { id, text, category } (저장하지 않음)
+// 화면 상태: 선택한 탭, 상태 필터 (저장하지 않음)
 let currentFilter = 'all';
 let statusFilter = 'all';
+// 수정 중인 항목 { kind: 'todo' | 'routine', id, text, category, rule(루틴만) }
 let editing = null;
 // 사용자가 카테고리를 직접 고르면 이번 할 일은 자동 분류를 멈춘다
 let categoryLocked = false;
+// 추가 폼의 반복 설정 { type: 'none' | 'daily' | 'weekly' | 'monthly', days, day }
+let addRule = createRuleState(null);
 
 // 서버 호출. 주소는 상대 경로로 쓴다 (nginx가 /todo/ 접두사를 뗀다).
 // 로그인이 풀렸으면(401) 로그인 화면으로 보낸다.
@@ -86,16 +105,33 @@ function clearNotice() {
   noticeEl.textContent = '';
 }
 
+function findItem(kind, id) {
+  const list = kind === 'routine' ? routines : todos;
+  return list.find((item) => item.id === id);
+}
+
 // 서버의 목록으로 화면을 다시 그린다 (날짜가 바뀌어 정리된 것, 다른 기기에서 바꾼 것 포함)
 async function refresh() {
-  const data = await api('GET', 'api/todos');
-  todos = data.todos.map((todo) => ({
+  const [todoData, routineData] = await Promise.all([
+    api('GET', 'api/todos'),
+    api('GET', 'api/routines'),
+  ]);
+  todos = todoData.todos.map((todo) => ({
     id: String(todo.id),
     text: todo.text,
     category: todo.category,
     done: todo.done,
   }));
-  if (editing && !todos.some((todo) => todo.id === editing.id)) editing = null;
+  routines = routineData.routines.map((routine) => ({
+    id: String(routine.id),
+    text: routine.text,
+    category: routine.category,
+    rule: routine.rule,
+    due: routine.due_today,
+    done: routine.done_today,
+  }));
+  serverToday = routineData.today;
+  if (editing && !findItem(editing.kind, editing.id)) editing = null;
   loaded = true;
   render();
 }
@@ -135,31 +171,182 @@ function normalizeCategory(category) {
   return CATEGORY_VALUES.includes(category) ? category : 'work';
 }
 
+// ---------- 반복 규칙 ----------
+
+// 기기 시계 기준 오늘의 요일(0=월)과 날짜. 반복을 처음 고를 때의 기본값으로만 쓴다
+function deviceWeekday() {
+  return (new Date().getDay() + 6) % 7;
+}
+
+function deviceDayOfMonth() {
+  return new Date().getDate();
+}
+
+// 서버의 규칙({type, days, day}) → 화면에서 고치는 상태. rule이 없으면 "반복 없음"
+function createRuleState(rule) {
+  return {
+    type: rule ? rule.type : 'none',
+    days: rule && rule.days ? [...rule.days] : [],
+    day: rule && rule.day ? rule.day : deviceDayOfMonth(),
+  };
+}
+
+// 화면 상태 → 서버에 보낼 규칙. { rule } 또는 { error }. "반복 없음"이면 { rule: null }
+function ruleFromState(state) {
+  if (state.type === 'none') return { rule: null };
+  if (state.type === 'daily') return { rule: { type: 'daily' } };
+  if (state.type === 'weekly') {
+    if (state.days.length === 0) return { error: '반복할 요일을 하나 이상 골라 주세요.' };
+    return { rule: { type: 'weekly', days: [...state.days].sort((a, b) => a - b) } };
+  }
+  const day = Number(state.day);
+  if (!Number.isInteger(day) || day < 1 || day > 31) {
+    return { error: '매월 며칠에 할지 1부터 31 사이로 넣어 주세요.' };
+  }
+  return { rule: { type: 'monthly', day } };
+}
+
+// 규칙을 한 줄 글로: "매일", "평일", "월·수·금", "매월 25일"
+function ruleLabel(rule) {
+  if (!rule) return '';
+  if (rule.type === 'daily') return '매일';
+  if (rule.type === 'monthly') return `매월 ${rule.day}일`;
+  const days = [...rule.days].sort((a, b) => a - b);
+  const key = days.join('');
+  if (key === '0123456') return '매일';
+  if (key === '01234') return '평일';
+  if (key === '56') return '주말';
+  return days.map((day) => WEEKDAY_LABELS[day]).join('·');
+}
+
+// 반복 설정 칸: 종류 선택 + (요일 지정이면) 요일 버튼 + (매월이면) 날짜.
+// 넘겨받은 state를 직접 고친다. 다시 그려도 state가 남아 있어 값이 유지된다.
+function createRuleControls(state, allowNone) {
+  const wrap = document.createElement('div');
+  wrap.className = 'rule-fields';
+
+  const typeSelect = document.createElement('select');
+  typeSelect.className = 'add-category rule-type';
+  typeSelect.setAttribute('aria-label', '반복');
+  Object.keys(RULE_TYPE_LABELS).forEach((value) => {
+    if (value === 'none' && !allowNone) return;
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = RULE_TYPE_LABELS[value];
+    typeSelect.append(option);
+  });
+  typeSelect.value = state.type;
+
+  const daysBox = document.createElement('div');
+  daysBox.className = 'rule-days';
+  daysBox.setAttribute('role', 'group');
+  daysBox.setAttribute('aria-label', '반복할 요일');
+  const chips = WEEKDAY_LABELS.map((label, day) => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'day-chip';
+    chip.textContent = label;
+    chip.setAttribute('aria-label', `${label}요일`);
+    chip.addEventListener('click', () => {
+      state.days = state.days.includes(day)
+        ? state.days.filter((value) => value !== day)
+        : [...state.days, day];
+      sync();
+    });
+    daysBox.append(chip);
+    return chip;
+  });
+
+  const monthBox = document.createElement('label');
+  monthBox.className = 'rule-month';
+  const dayInput = document.createElement('input');
+  dayInput.type = 'number';
+  dayInput.className = 'add-input rule-day';
+  dayInput.min = '1';
+  dayInput.max = '31';
+  dayInput.inputMode = 'numeric';
+  dayInput.value = String(state.day);
+  dayInput.setAttribute('aria-label', '매월 며칠');
+  dayInput.addEventListener('input', () => {
+    state.day = dayInput.value === '' ? NaN : Number(dayInput.value);
+  });
+  const monthHint = document.createElement('span');
+  monthHint.className = 'rule-hint';
+  monthHint.textContent = '그 달에 없는 날짜면 마지막 날에 해요';
+  monthBox.append('매월 ', dayInput, ' 일', monthHint);
+
+  function sync() {
+    daysBox.hidden = state.type !== 'weekly';
+    monthBox.hidden = state.type !== 'monthly';
+    chips.forEach((chip, day) => {
+      const isOn = state.days.includes(day);
+      chip.classList.toggle('is-on', isOn);
+      chip.setAttribute('aria-pressed', String(isOn));
+    });
+  }
+
+  typeSelect.addEventListener('change', () => {
+    state.type = typeSelect.value;
+    // 요일 지정을 처음 고르면 오늘 요일을 골라 둔다
+    if (state.type === 'weekly' && state.days.length === 0) state.days = [deviceWeekday()];
+    sync();
+  });
+
+  sync();
+  wrap.append(typeSelect, daysBox, monthBox);
+  return wrap;
+}
+
+function resetAddRule() {
+  addRule = createRuleState(null);
+  addRuleEl.replaceChildren(createRuleControls(addRule, true));
+}
+
+// ---------- 서버에 바꾸기 ----------
+
 function addTodo(text, category) {
   return change(() => api('POST', 'api/todos', { text, category: normalizeCategory(category) }));
+}
+
+function addRoutine(text, category, rule) {
+  return change(() => api('POST', 'api/routines', {
+    text,
+    category: normalizeCategory(category),
+    rule,
+  }));
 }
 
 function deleteTodo(id) {
   return change(() => api('DELETE', `api/todos/${id}`));
 }
 
-// 완료 전환. 서버가 그 항목을 맨 끝으로 옮겨 각 그룹의 맨 아래에 오게 한다
-function toggleTodo(id) {
-  const todo = todos.find((item) => item.id === id);
-  if (!todo) return Promise.resolve(false);
-  return change(() => api('PATCH', `api/todos/${id}`, { done: !todo.done }));
+// 루틴 종료: 오늘부터 목록에 나오지 않는다. 지난 기록은 서버에 남는다
+function endRoutine(id) {
+  return change(() => api('POST', `api/routines/${id}/end`));
 }
 
-// 완료 항목 일괄 삭제 (모든 카테고리)
+// 완료 전환. 할 일은 서버가 맨 끝으로 옮긴다. 루틴은 오늘 날짜의 기록을 적거나 지운다
+function toggleItem(kind, id) {
+  const item = findItem(kind, id);
+  if (!item) return Promise.resolve(false);
+  if (kind === 'routine') {
+    const method = item.done ? 'DELETE' : 'PUT';
+    return change(() => api(method, `api/routines/${id}/logs/${serverToday}`));
+  }
+  return change(() => api('PATCH', `api/todos/${id}`, { done: !item.done }));
+}
+
+// 완료 항목 일괄 삭제 (모든 카테고리의 할 일. 루틴은 지우지 않는다)
 function clearDone() {
   return change(() => api('POST', 'api/todos/clear-done'));
 }
 
 // 수정 시작 (한 번에 한 항목만)
-function startEdit(id) {
-  const todo = todos.find((item) => item.id === id);
-  if (!todo) return;
-  editing = { id, text: todo.text, category: todo.category };
+function startEdit(kind, id) {
+  const item = findItem(kind, id);
+  if (!item) return;
+  editing = { kind, id, text: item.text, category: item.category };
+  if (kind === 'routine') editing.rule = createRuleState(item.rule);
   render();
 }
 
@@ -171,16 +358,28 @@ function cancelEdit() {
 // 빈 값이거나 저장에 실패하면 수정 상태를 유지한다
 async function saveEdit() {
   if (!editing) return false;
-  const { id } = editing;
+  const { kind, id } = editing;
   const text = editing.text.trim().slice(0, MAX_LENGTH);
   if (text === '') return false;
-  const category = normalizeCategory(editing.category);
-  const saved = await change(() => api('PATCH', `api/todos/${id}`, { text, category }));
+  const body = { text, category: normalizeCategory(editing.category) };
+  let path = `api/todos/${id}`;
+  if (kind === 'routine') {
+    const parsed = ruleFromState(editing.rule);
+    if (parsed.error) {
+      showNotice(parsed.error);
+      return false;
+    }
+    body.rule = parsed.rule;
+    path = `api/routines/${id}`;
+  }
+  const saved = await change(() => api('PATCH', path, body));
   if (!saved) return false;
-  if (editing && editing.id === id) editing = null;
+  if (editing && editing.kind === kind && editing.id === id) editing = null;
   render();
   return true;
 }
+
+// ---------- 그리기 ----------
 
 // 오늘 날짜 문구 (기기 현지 시간)
 function formatToday() {
@@ -199,45 +398,68 @@ function createButton(label, action, ariaLabel, extraClass = '') {
   return button;
 }
 
-function createTodoItem(todo) {
+// 한 줄: 체크박스 + 카테고리 배지 + 내용 + 버튼.
+// 루틴은 내용 아래에 반복 규칙을 적고, 삭제 대신 종료 버튼을 둔다.
+// checkable이 false면(오늘 해당 없는 루틴) 체크박스를 두지 않는다.
+function createItem(kind, item, checkable = true) {
   const li = document.createElement('li');
-  li.className = `todo-item cat-${normalizeCategory(todo.category)}`;
-  if (todo.done) li.classList.add('is-done');
-  li.dataset.id = todo.id;
+  li.className = `todo-item cat-${normalizeCategory(item.category)}`;
+  if (kind === 'routine') li.classList.add('is-routine');
+  if (checkable && item.done) li.classList.add('is-done');
+  if (!checkable) li.classList.add('is-rest');
+  li.dataset.kind = kind;
+  li.dataset.id = item.id;
 
-  const label = document.createElement('label');
-  label.className = 'todo-check';
-  const checkbox = document.createElement('input');
-  checkbox.type = 'checkbox';
-  checkbox.checked = todo.done;
-  checkbox.dataset.action = 'toggle';
-  checkbox.setAttribute('aria-label', `${todo.text} 완료 표시`);
-  label.append(checkbox);
+  const check = document.createElement(checkable ? 'label' : 'span');
+  check.className = 'todo-check';
+  if (checkable) {
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = item.done;
+    checkbox.dataset.action = 'toggle';
+    checkbox.setAttribute('aria-label', `${item.text} 완료 표시`);
+    check.append(checkbox);
+  } else {
+    check.setAttribute('aria-hidden', 'true');
+  }
 
   const badge = document.createElement('span');
   badge.className = 'badge';
-  badge.textContent = CATEGORY_LABELS[normalizeCategory(todo.category)];
+  badge.textContent = CATEGORY_LABELS[normalizeCategory(item.category)];
 
   const text = document.createElement('span');
   text.className = 'todo-text';
-  text.textContent = todo.text;
+  text.textContent = item.text;
+
+  let main = text;
+  if (kind === 'routine') {
+    main = document.createElement('div');
+    main.className = 'todo-main';
+    const rule = document.createElement('span');
+    rule.className = 'todo-rule';
+    rule.textContent = ruleLabel(item.rule);
+    main.append(text, rule);
+  }
 
   const actions = document.createElement('div');
   actions.className = 'todo-actions';
   actions.append(
-    createButton('수정', 'edit', `${todo.text} 수정`),
-    createButton('삭제', 'delete', `${todo.text} 삭제`, 'btn-danger'),
+    createButton('수정', 'edit', `${item.text} 수정`),
+    kind === 'routine'
+      ? createButton('종료', 'end', `${item.text} 루틴 종료`, 'btn-danger')
+      : createButton('삭제', 'delete', `${item.text} 삭제`, 'btn-danger'),
   );
 
-  li.append(label, badge, text, actions);
+  li.append(check, badge, main, actions);
   return li;
 }
 
-// 수정 중인 항목: 그 자리에 입력창 + 카테고리 + 저장/취소
-function createEditItem(todo) {
+// 수정 중인 항목: 그 자리에 입력창 + (루틴이면 반복 설정) + 카테고리 + 저장/취소
+function createEditItem(kind, item) {
   const li = document.createElement('li');
   li.className = `todo-item is-editing cat-${normalizeCategory(editing.category)}`;
-  li.dataset.id = todo.id;
+  li.dataset.kind = kind;
+  li.dataset.id = item.id;
 
   const editForm = document.createElement('form');
   editForm.className = 'edit-form';
@@ -249,7 +471,7 @@ function createEditItem(todo) {
   editInput.autocomplete = 'off';
   editInput.value = editing.text;
   editInput.dataset.action = 'edit-text';
-  editInput.setAttribute('aria-label', '할 일 내용 수정');
+  editInput.setAttribute('aria-label', kind === 'routine' ? '루틴 내용 수정' : '할 일 내용 수정');
 
   const editSelect = document.createElement('select');
   editSelect.className = 'add-category';
@@ -275,21 +497,41 @@ function createEditItem(todo) {
   row.className = 'add-row';
   row.append(editSelect, saveBtn, cancelBtn);
 
-  editForm.append(editInput, row);
+  editForm.append(editInput);
+  if (kind === 'routine') {
+    const hint = document.createElement('p');
+    hint.className = 'rule-hint';
+    hint.textContent = '반복을 바꾸면 오늘부터 적용돼요. 지난 기록은 그대로 남아요.';
+    editForm.append(createRuleControls(editing.rule, false), hint);
+  }
+  editForm.append(row);
   li.append(editForm);
   return li;
 }
 
+function isEditing(kind, item) {
+  return editing !== null && editing.kind === kind && editing.id === item.id;
+}
+
+function createRow(kind, item, checkable = true) {
+  return isEditing(kind, item) ? createEditItem(kind, item) : createItem(kind, item, checkable);
+}
+
+// 오늘 세는 항목: 오늘 하는 루틴 + 할 일 (탭 개수와 진행률에 쓴다)
+function countedItems() {
+  return [...routines.filter((routine) => routine.due), ...todos];
+}
+
 // 탭 버튼: 선택 표시와 카테고리별 개수
-function renderTabs() {
+function renderTabs(counted) {
   tabsEl.querySelectorAll('.tab').forEach((tab) => {
     const filter = tab.dataset.filter;
     const isActive = filter === currentFilter;
     tab.classList.toggle('is-active', isActive);
     tab.setAttribute('aria-pressed', String(isActive));
     const count = filter === 'all'
-      ? todos.length
-      : todos.filter((todo) => todo.category === filter).length;
+      ? counted.length
+      : counted.filter((item) => item.category === filter).length;
     tab.querySelector('.tab-count').textContent = count;
   });
 }
@@ -305,13 +547,13 @@ function renderStatusTabs() {
 
 function getPercent(list) {
   if (list.length === 0) return 0;
-  return Math.round((list.filter((todo) => todo.done).length / list.length) * 100);
+  return Math.round((list.filter((item) => item.done).length / list.length) * 100);
 }
 
 // 통계 카드: 선택한 탭 진행률 (상태 필터와 상관없이 카테고리 기준) + 카테고리별 현황
-function renderStats(visible) {
+function renderStats(counted, visible) {
   const total = visible.length;
-  const doneCount = visible.filter((todo) => todo.done).length;
+  const doneCount = visible.filter((item) => item.done).length;
   const percent = getPercent(visible);
 
   statsEl.dataset.filter = currentFilter;
@@ -326,68 +568,90 @@ function renderStats(visible) {
     : `${total}개 중 ${doneCount}개 완료`;
 
   statsListEl.querySelectorAll('.stats-row').forEach((row) => {
-    const list = todos.filter((todo) => todo.category === row.dataset.category);
-    const rowDone = list.filter((todo) => todo.done).length;
+    const list = counted.filter((item) => item.category === row.dataset.category);
+    const rowDone = list.filter((item) => item.done).length;
     row.querySelector('.mini-fill').style.width = `${getPercent(list)}%`;
     row.querySelector('.stats-count').textContent = `${rowDone} / ${list.length}`;
   });
 }
 
-// 화면 전체 다시 그리기: 미완료 → 완료 순, 그룹 안은 배열 순서
+// 화면 전체 다시 그리기.
+// 루틴: 만든 순서 그대로 (완료해도 자리를 옮기지 않는다). 할 일: 미완료 → 완료 순, 그룹 안은 서버 순서
 function render() {
   todayEl.textContent = formatToday();
 
-  const visible = currentFilter === 'all'
-    ? todos
-    : todos.filter((todo) => todo.category === currentFilter);
+  const inCategory = (item) => currentFilter === 'all' || item.category === currentFilter;
+  const inStatus = (item) => statusFilter === 'all' || (statusFilter === 'done') === item.done;
+
+  // 루틴 구역: 루틴이 하나도 없으면 구역과 "할 일" 제목을 감춘다
+  const dueRoutines = routines.filter((routine) => routine.due);
+  const shownRoutines = dueRoutines.filter(inCategory).filter(inStatus);
+  const restRoutines = routines.filter((routine) => !routine.due).filter(inCategory);
+  routineSectionEl.hidden = routines.length === 0;
+  todoTitleEl.hidden = routines.length === 0;
+  routineListEl.replaceChildren(...shownRoutines.map((routine) => createRow('routine', routine)));
+  routineEmptyEl.hidden = shownRoutines.length > 0;
+  routineEmptyEl.textContent = dueRoutines.length === 0
+    ? '오늘은 하는 날인 루틴이 없어요'
+    : '해당하는 루틴이 없어요';
+  restEl.hidden = restRoutines.length === 0;
+  restSummaryEl.textContent = `오늘 해당 없는 루틴 ${restRoutines.length}개`;
+  restListEl.replaceChildren(...restRoutines.map((routine) => createRow('routine', routine, false)));
+
+  // 할 일
+  const visibleTodos = todos.filter(inCategory);
   const ordered = [
-    ...(statusFilter === 'done' ? [] : visible.filter((todo) => !todo.done)),
-    ...(statusFilter === 'active' ? [] : visible.filter((todo) => todo.done)),
+    ...(statusFilter === 'done' ? [] : visibleTodos.filter((todo) => !todo.done)),
+    ...(statusFilter === 'active' ? [] : visibleTodos.filter((todo) => todo.done)),
   ];
-  listEl.replaceChildren(...ordered.map((todo) => (
-    editing && editing.id === todo.id ? createEditItem(todo) : createTodoItem(todo)
-  )));
+  listEl.replaceChildren(...ordered.map((todo) => createRow('todo', todo)));
   // 빈 안내: 할 일 자체가 없을 때와 상태 필터로 걸러져 없을 때를 구분
   emptyEl.hidden = ordered.length > 0;
   if (!loaded) emptyEl.textContent = '불러오는 중이에요';
-  else if (visible.length === 0) emptyEl.textContent = '오늘 할 일을 추가해 보세요';
+  else if (visibleTodos.length === 0) emptyEl.textContent = '오늘 할 일을 추가해 보세요';
   else emptyEl.textContent = '해당하는 할 일이 없어요';
   clearDoneBtn.hidden = !todos.some((todo) => todo.done);
 
-  renderTabs();
+  const counted = countedItems();
+  renderTabs(counted);
   renderStatusTabs();
-  renderStats(visible);
+  renderStats(counted, counted.filter(inCategory));
+}
+
+function itemSelector(kind, id) {
+  return `[data-kind="${kind}"][data-id="${id}"]`;
 }
 
 // 다시 그린 뒤 같은 항목의 같은 컨트롤에 포커스를 되돌린다 (키보드 사용)
-function restoreFocus(id, action) {
-  const target = listEl.querySelector(`[data-id="${id}"] [data-action="${action}"]`);
+function restoreFocus(kind, id, action) {
+  const target = listsEl.querySelector(`${itemSelector(kind, id)} [data-action="${action}"]`);
   if (target) target.focus();
 }
 
 // 수정 입력창에 포커스, 커서는 글 끝으로
-function focusEditInput(id) {
-  const target = listEl.querySelector(`[data-id="${id}"] [data-action="edit-text"]`);
+function focusEditInput(kind, id) {
+  const target = listsEl.querySelector(`${itemSelector(kind, id)} [data-action="edit-text"]`);
   if (!target) return;
   target.focus();
   target.setSelectionRange(target.value.length, target.value.length);
 }
 
-function beginEdit(id) {
-  startEdit(id);
-  focusEditInput(id);
+function beginEdit(kind, id) {
+  startEdit(kind, id);
+  focusEditInput(kind, id);
 }
 
-async function endEdit(id, shouldSave) {
+async function endEdit(kind, id, shouldSave) {
   if (shouldSave) {
     if (!(await saveEdit())) {
-      focusEditInput(id);
+      // 반복 설정을 고치던 중이면 포커스를 옮기지 않는다
+      if (!listsEl.contains(document.activeElement)) focusEditInput(kind, id);
       return;
     }
   } else {
     cancelEdit();
   }
-  restoreFocus(id, 'edit');
+  restoreFocus(kind, id, 'edit');
 }
 
 // 키워드가 가장 많이 맞은 카테고리 (안 맞거나 동점이면 null)
@@ -409,6 +673,8 @@ function guessCategory(text) {
   return isTie ? null : best;
 }
 
+// ---------- 이벤트 ----------
+
 // 입력하는 동안 카테고리 선택칸을 자동으로 바꾼다
 input.addEventListener('input', () => {
   if (categoryLocked) return;
@@ -423,6 +689,7 @@ categorySelect.addEventListener('change', () => {
   categorySelect.classList.remove('is-auto');
 });
 
+// 추가: 반복을 골랐으면 루틴으로, 아니면 할 일로 저장한다
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
   const text = input.value.trim().slice(0, MAX_LENGTH);
@@ -431,11 +698,20 @@ form.addEventListener('submit', async (event) => {
     input.focus();
     return;
   }
-  // 저장에 실패하면 입력한 글을 그대로 둔다
-  if (!(await addTodo(text, categorySelect.value))) return;
+  const parsed = ruleFromState(addRule);
+  if (parsed.error) {
+    showNotice(parsed.error);
+    return;
+  }
+  // 저장에 실패하면 입력한 글과 반복 설정을 그대로 둔다
+  const saved = parsed.rule
+    ? await addRoutine(text, categorySelect.value, parsed.rule)
+    : await addTodo(text, categorySelect.value);
+  if (!saved) return;
   input.value = '';
   categoryLocked = false;
   categorySelect.classList.remove('is-auto');
+  resetAddRule();
   input.focus();
 });
 
@@ -457,20 +733,21 @@ statusTabsEl.addEventListener('click', (event) => {
 clearDoneBtn.addEventListener('click', async () => {
   const doneCount = todos.filter((todo) => todo.done).length;
   if (doneCount === 0) return;
-  if (!confirm(`완료한 할 일 ${doneCount}개를 모두 지울까요?\n(모든 카테고리의 완료 항목이 지워집니다)`)) return;
+  if (!confirm(`완료한 할 일 ${doneCount}개를 모두 지울까요?\n(모든 카테고리의 완료 항목이 지워집니다. 루틴은 지워지지 않습니다)`)) return;
   await clearDone();
   input.focus();
 });
 
-listEl.addEventListener('change', async (event) => {
+// 아래는 루틴 목록과 할 일 목록이 함께 쓴다 (항목의 data-kind로 구분)
+listsEl.addEventListener('change', async (event) => {
   if (event.target.dataset.action !== 'toggle') return;
-  const id = event.target.closest('.todo-item').dataset.id;
-  await toggleTodo(id);
-  restoreFocus(id, 'toggle');
+  const { kind, id } = event.target.closest('.todo-item').dataset;
+  await toggleItem(kind, id);
+  restoreFocus(kind, id, 'toggle');
 });
 
 // 수정 중 입력값은 화면 상태에 담아 둔다 (다시 그려도 유지)
-listEl.addEventListener('input', (event) => {
+listsEl.addEventListener('input', (event) => {
   if (!editing) return;
   const action = event.target.dataset.action;
   if (action === 'edit-text') editing.text = event.target.value;
@@ -478,41 +755,47 @@ listEl.addEventListener('input', (event) => {
 });
 
 // 수정 저장 (Enter 또는 [저장])
-listEl.addEventListener('submit', (event) => {
+listsEl.addEventListener('submit', (event) => {
   event.preventDefault();
-  if (editing) endEdit(editing.id, true);
+  if (editing) endEdit(editing.kind, editing.id, true);
 });
 
 // Esc로 수정 취소 (한글 조합 중에는 무시)
-listEl.addEventListener('keydown', (event) => {
+listsEl.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape' || event.isComposing || !editing) return;
   if (!event.target.closest('.is-editing')) return;
   event.preventDefault();
-  endEdit(editing.id, false);
+  endEdit(editing.kind, editing.id, false);
 });
 
-listEl.addEventListener('click', async (event) => {
+listsEl.addEventListener('click', async (event) => {
   const button = event.target.closest('[data-action]');
   if (!button || button.tagName !== 'BUTTON') return;
-  const id = button.closest('.todo-item').dataset.id;
+  const { kind, id } = button.closest('.todo-item').dataset;
   const action = button.dataset.action;
+  const item = findItem(kind, id);
+  if (!item) return;
 
-  if (action === 'edit') beginEdit(id);
-  if (action === 'cancel') endEdit(id, false);
+  if (action === 'edit') beginEdit(kind, id);
+  if (action === 'cancel') endEdit(kind, id, false);
   if (action === 'delete') {
-    const todo = todos.find((item) => item.id === id);
-    if (!todo) return;
-    if (!confirm(`이 할 일을 삭제할까요?\n\n${todo.text}`)) return;
+    if (!confirm(`이 할 일을 삭제할까요?\n\n${item.text}`)) return;
     await deleteTodo(id);
+    input.focus();
+  }
+  if (action === 'end') {
+    if (!confirm(`이 루틴을 종료할까요?\n오늘부터 목록에 나오지 않고, 지난 기록은 남습니다.\n\n${item.text}`)) return;
+    await endRoutine(id);
     input.focus();
   }
 });
 
 // 데스크톱: 내용을 더블클릭해도 수정
-listEl.addEventListener('dblclick', (event) => {
+listsEl.addEventListener('dblclick', (event) => {
   const text = event.target.closest('.todo-text');
   if (!text) return;
-  beginEdit(text.closest('.todo-item').dataset.id);
+  const { kind, id } = text.closest('.todo-item').dataset;
+  beginEdit(kind, id);
 });
 
 logoutBtn.addEventListener('click', async () => {
@@ -533,5 +816,6 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // 시작: 빈 틀을 먼저 그리고 서버에서 불러온다
+resetAddRule();
 render();
 load();
