@@ -182,61 +182,6 @@ select {
   transition: width 0.25s, background-color 0.25s;
 }
 
-/* 카테고리별 현황: 한 줄에 세 칸. 왼쪽 세로줄 + 이름 + 개수 */
-.stats-list {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin: 10px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.stats-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  padding: 1px 0 1px 8px;
-  border-left: 3px solid var(--cat);
-  font-size: 14px;
-}
-
-.stats-name {
-  font-weight: 700;
-}
-
-/* 작은 막대는 짧은 카드에서는 쓰지 않는다 (개수로 충분하다) */
-.mini-bar {
-  display: none;
-  height: 6px;
-  background: var(--track);
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.mini-fill {
-  display: block;
-  width: 0;
-  height: 100%;
-  background: var(--cat);
-  border-radius: 999px;
-  transition: width 0.25s;
-}
-
-.stats-count {
-  font-weight: 700;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-/* 카테고리 탭을 고르면 그 줄만 강조 */
-.stats[data-filter="work"] .stats-row:not(.cat-work),
-.stats[data-filter="personal"] .stats-row:not(.cat-personal),
-.stats[data-filter="growth"] .stats-row:not(.cat-growth) {
-  opacity: 0.45;
-}
-
 /* 입력 영역 */
 .add-form {
   display: flex;
@@ -277,13 +222,16 @@ select {
 }
 
 /* 음성 입력 */
-.voice-btn {
+/* .btn보다 뒤에 오지 않아도 이기도록 두 클래스로 쓴다 */
+.btn.voice-btn {
   display: flex;
   align-items: center;
   justify-content: center;
   flex: none;
   width: 48px;
   padding: 0;
+  background: #eef1fe;
+  border-color: var(--primary);
   color: var(--primary);
 }
 
@@ -296,7 +244,7 @@ select {
 }
 
 /* 듣는 중: 색만이 아니라 채워진 모양과 "듣고 있어요" 글로도 알린다 */
-.voice-btn.is-listening {
+.btn.voice-btn.is-listening {
   background: var(--danger);
   border-color: var(--danger);
   color: var(--primary-text);
@@ -842,8 +790,21 @@ select {
   grid-column: 1 / -1;
 }
 
+/* 추가 버튼은 입력창과 같은 줄 끝에 */
 .add-submit {
-  width: 100%;
+  flex: none;
+  padding: 0 18px;
+}
+
+/* 접히는 부분: 카테고리·반복, 묶음 고르기, 새 묶음 만들기 */
+.add-more {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.add-form.is-collapsed .add-more {
+  display: none;
 }
 
 /* 묶음 구역: 접힌 한 줄(이름과 남은 개수), 펼치면 아래에 품목 */
@@ -1260,6 +1221,11 @@ button.habit-mark {
 
   .add-form {
     margin-bottom: 16px;
+  }
+
+  /* 넓은 화면에서는 자리가 넉넉하므로 접지 않는다 */
+  .add-form.is-collapsed .add-more {
+    display: flex;
   }
 
   .add-input,

@@ -30,7 +30,7 @@
 
     <div id="view-today">
 
-    <!-- 통계: 선택한 탭 진행률 + 카테고리별 현황 -->
+    <!-- 통계: 선택한 탭의 진행률 (카테고리별 개수는 아래 카테고리 탭의 숫자로 본다) -->
     <section class="card stats" id="stats" data-filter="all" aria-label="진행 현황">
       <div class="stats-head">
         <div>
@@ -42,37 +42,21 @@
       <div class="progress-bar" id="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
         <div class="progress-fill" id="progress-fill"></div>
       </div>
-      <ul class="stats-list" id="stats-list">
-        <li class="stats-row cat-work" data-category="work">
-          <span class="stats-name">업무</span>
-          <span class="mini-bar" aria-hidden="true"><span class="mini-fill"></span></span>
-          <span class="stats-count">0 / 0</span>
-        </li>
-        <li class="stats-row cat-personal" data-category="personal">
-          <span class="stats-name">개인</span>
-          <span class="mini-bar" aria-hidden="true"><span class="mini-fill"></span></span>
-          <span class="stats-count">0 / 0</span>
-        </li>
-        <li class="stats-row cat-growth" data-category="growth">
-          <span class="stats-name">성장</span>
-          <span class="mini-bar" aria-hidden="true"><span class="mini-fill"></span></span>
-          <span class="stats-count">0 / 0</span>
-        </li>
-      </ul>
     </section>
 
-    <!-- 입력 영역 -->
-    <form class="card add-form" id="add-form">
-      <!-- 입력창과 마이크 버튼. 마이크는 음성 인식을 쓸 수 있는 브라우저에서만 보인다 (voice.js) -->
+    <!-- 입력 영역. 평소에는 첫 줄(입력창, 마이크, 추가)만 보인다. 입력창을 누르거나 적기 시작하면 나머지가 펼쳐진다 (app.js) -->
+    <form class="card add-form is-collapsed" id="add-form">
+      <!-- 마이크는 음성 인식을 쓸 수 있는 브라우저에서만 보인다 (voice.js) -->
       <div class="add-main">
         <input class="add-input" id="add-input" type="text" maxlength="100"
                placeholder="할 일을 입력하세요" aria-label="할 일 내용" autocomplete="off" autofocus>
         <button class="btn voice-btn" id="voice-btn" type="button" aria-label="말로 입력" aria-pressed="false" hidden>
-          <svg class="voice-icon" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
-            <rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/>
-            <path d="M6 11a6 6 0 0 0 12 0M12 17v4M8.5 21h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <svg class="voice-icon" viewBox="3 1.5 18 21" width="26" height="30" aria-hidden="true">
+            <path d="M12 14.5a3.5 3.5 0 0 0 3.5-3.5V6a3.5 3.5 0 0 0-7 0v5a3.5 3.5 0 0 0 3.5 3.5z" fill="currentColor"/>
+            <path d="M18.5 11a6.5 6.5 0 0 1-13 0M12 17.5V21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
           </svg>
         </button>
+        <button class="btn btn-primary add-submit" type="submit">추가</button>
       </div>
       <!-- 듣는 동안의 표시와 받아 적은 글 (voice.js가 채움) -->
       <div class="voice-panel" id="voice-panel" hidden>
@@ -80,34 +64,35 @@
         <p class="voice-heard" id="voice-heard"></p>
         <button class="btn btn-primary voice-big" id="voice-big" type="button" hidden>눌러서 말하기</button>
       </div>
-      <!-- 고를 것: 카테고리와 반복을 한 줄에. 묶음을 고르면 감춘다 -->
-      <div class="add-options" id="add-options">
-        <select class="add-category" id="add-category" aria-label="카테고리">
-          <option value="work">업무</option>
-          <option value="personal">개인</option>
-          <option value="growth">성장</option>
-        </select>
-        <!-- 반복 설정 (app.js가 채움). 반복을 고르면 루틴으로 저장된다 -->
-        <div id="add-rule"></div>
-      </div>
-      <!-- 묶음 고르기 (app.js가 채움). 하나를 고르고 입력하면 그 묶음의 품목으로 들어간다 -->
-      <div class="group-bar" id="group-bar" role="group" aria-label="넣을 묶음"></div>
-      <!-- 새 묶음 만들기: "+ 묶음"을 누르면 보인다 -->
-      <div class="group-new" id="group-new" hidden>
-        <input class="add-input" id="group-name" type="text" maxlength="20"
-               placeholder="묶음 이름 (예: 장보기)" aria-label="새 묶음 이름" autocomplete="off">
-        <div class="add-row">
-          <select class="add-category" id="group-category" aria-label="새 묶음의 카테고리">
+      <!-- 접히는 부분: 카테고리·반복, 묶음 고르기, 새 묶음 만들기 -->
+      <div class="add-more" id="add-more">
+        <!-- 고를 것: 카테고리와 반복을 한 줄에. 묶음을 고르면 감춘다 -->
+        <div class="add-options" id="add-options">
+          <select class="add-category" id="add-category" aria-label="카테고리">
             <option value="work">업무</option>
-            <option value="personal" selected>개인</option>
+            <option value="personal">개인</option>
             <option value="growth">성장</option>
           </select>
-          <button class="btn btn-primary" id="group-create" type="button">만들기</button>
-          <button class="btn" id="group-cancel" type="button">취소</button>
+          <!-- 반복 설정 (app.js가 채움). 반복을 고르면 루틴으로 저장된다 -->
+          <div id="add-rule"></div>
+        </div>
+        <!-- 묶음 고르기 (app.js가 채움). 하나를 고르고 입력하면 그 묶음의 품목으로 들어간다 -->
+        <div class="group-bar" id="group-bar" role="group" aria-label="넣을 묶음"></div>
+        <!-- 새 묶음 만들기: "+ 묶음"을 누르면 보인다 -->
+        <div class="group-new" id="group-new" hidden>
+          <input class="add-input" id="group-name" type="text" maxlength="20"
+                 placeholder="묶음 이름 (예: 장보기)" aria-label="새 묶음 이름" autocomplete="off">
+          <div class="add-row">
+            <select class="add-category" id="group-category" aria-label="새 묶음의 카테고리">
+              <option value="work">업무</option>
+              <option value="personal" selected>개인</option>
+              <option value="growth">성장</option>
+            </select>
+            <button class="btn btn-primary" id="group-create" type="button">만들기</button>
+            <button class="btn" id="group-cancel" type="button">취소</button>
+          </div>
         </div>
       </div>
-      <!-- 추가 버튼은 고를 것을 다 지난 맨 아래에 둔다 -->
-      <button class="btn btn-primary add-submit" type="submit">추가</button>
     </form>
 
     <!-- 필터 탭 -->

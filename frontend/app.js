@@ -37,6 +37,7 @@ const input = document.getElementById('add-input');
 const categorySelect = document.getElementById('add-category');
 const addRuleEl = document.getElementById('add-rule');
 const addOptionsEl = document.getElementById('add-options');
+const addMoreEl = document.getElementById('add-more');
 const listsEl = document.getElementById('lists');
 const routineSectionEl = document.getElementById('routine-section');
 const routineListEl = document.getElementById('routine-list');
@@ -64,7 +65,6 @@ const progressText = document.getElementById('progress-text');
 const statsEl = document.getElementById('stats');
 const statsLabel = document.getElementById('stats-label');
 const statsPercent = document.getElementById('stats-percent');
-const statsListEl = document.getElementById('stats-list');
 const noticeEl = document.getElementById('notice');
 const logoutBtn = document.getElementById('logout');
 
@@ -757,8 +757,8 @@ function getPercent(list) {
   return Math.round((list.filter((item) => item.done).length / list.length) * 100);
 }
 
-// 통계 카드: 선택한 탭 진행률 (상태 필터와 상관없이 카테고리 기준) + 카테고리별 현황
-function renderStats(counted, visible) {
+// 통계 카드: 선택한 탭의 진행률 (상태 필터와 상관없이 카테고리 기준)
+function renderStats(visible) {
   const total = visible.length;
   const doneCount = visible.filter((item) => item.done).length;
   const percent = getPercent(visible);
@@ -773,13 +773,6 @@ function renderStats(counted, visible) {
   progressText.textContent = total === 0
     ? '아직 할 일이 없어요'
     : `${total}개 중 ${doneCount}개 완료`;
-
-  statsListEl.querySelectorAll('.stats-row').forEach((row) => {
-    const list = counted.filter((item) => item.category === row.dataset.category);
-    const rowDone = list.filter((item) => item.done).length;
-    row.querySelector('.mini-fill').style.width = `${getPercent(list)}%`;
-    row.querySelector('.stats-count').textContent = `${rowDone} / ${list.length}`;
-  });
 }
 
 // 화면 전체 다시 그리기.
@@ -849,7 +842,7 @@ function render() {
   const counted = countedItems();
   renderTabs(counted);
   renderStatusTabs();
-  renderStats(counted, counted.filter(inCategory));
+  renderStats(counted.filter(inCategory));
   renderHabits();
 }
 
@@ -966,6 +959,47 @@ form.addEventListener('submit', async (event) => {
   categorySelect.classList.remove('is-auto');
   resetAddRule();
   input.focus();
+});
+
+// ---------- 입력 영역 접기 ----------
+// 평소에는 입력창·마이크·추가 한 줄만 보인다. 입력창을 누르거나 적기 시작하면 펼친다.
+// (화면을 열 때 커서가 가 있는 것만으로는 펼치지 않는다)
+
+function openAddMore() {
+  form.classList.remove('is-collapsed');
+  input.setAttribute('aria-expanded', 'true');
+}
+
+// 고른 것이 남아 있으면 접지 않는다 (어디에 들어갈지 안 보이면 안 되므로)
+function canCloseAddMore() {
+  return input.value.trim() === ''
+    && selectedGroup === null
+    && addRule.type === 'none'
+    && groupNewEl.hidden;
+}
+
+function closeAddMore() {
+  if (!canCloseAddMore()) return;
+  form.classList.add('is-collapsed');
+  input.setAttribute('aria-expanded', 'false');
+}
+
+input.setAttribute('aria-controls', 'add-more');
+input.setAttribute('aria-expanded', 'false');
+input.addEventListener('click', openAddMore);
+input.addEventListener('input', openAddMore);
+
+// 입력 영역 밖을 누르면 접는다. 누른 동작이 끝난 뒤에 접어서, 목록이 밀려 올라가 엉뚱한 것이 눌리지 않게 한다
+document.addEventListener('pointerdown', (event) => {
+  if (form.contains(event.target)) return;
+  setTimeout(closeAddMore, 350);
+});
+
+// 키보드(Tab)로 입력 영역을 벗어났을 때도 접는다
+form.addEventListener('focusout', () => {
+  setTimeout(() => {
+    if (!form.contains(document.activeElement)) closeAddMore();
+  }, 350);
 });
 
 // 묶음 버튼: 누르면 그 묶음에 넣는다. "+ 묶음"은 새 묶음 칸을 연다

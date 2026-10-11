@@ -55,3 +55,22 @@ def test_todos_are_not_kept_in_the_browser():
     """할 일은 서버에만 저장한다 (기기마다 목록이 달라지지 않게)."""
     script = (FRONTEND_DIR / "app.js").read_text(encoding="utf-8")
     assert "localStorage" not in script
+
+
+def test_add_form_keeps_only_one_row_outside_the_folding_part():
+    """입력 영역은 접힌 채로 시작하고, 카테고리·반복·묶음 버튼은 접히는 덩어리 안에 있다."""
+    page = (FRONTEND_DIR / "index.html").read_text(encoding="utf-8")
+    form = page[page.index('id="add-form"'):page.index("</form>")]
+    assert 'class="card add-form is-collapsed"' in page
+    head, more = form.split('id="add-more"')
+    for control in ('id="add-input"', 'id="voice-btn"', 'type="submit"'):
+        assert control in head
+    for control in ('id="add-category"', 'id="add-rule"', 'id="group-bar"', 'id="group-new"'):
+        assert control in more and control not in head
+
+
+def test_stats_card_has_no_category_rows():
+    page = (FRONTEND_DIR / "index.html").read_text(encoding="utf-8")
+    script = (FRONTEND_DIR / "app.js").read_text(encoding="utf-8")
+    assert "stats-list" not in page and "stats-row" not in page
+    assert "stats-list" not in script
