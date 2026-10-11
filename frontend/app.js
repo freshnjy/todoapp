@@ -112,7 +112,18 @@ async function api(method, path, body) {
     error.unauthorized = true;
     throw error;
   }
-  if (!response.ok) throw new Error(`서버 응답 ${response.status}`);
+  if (!response.ok) {
+    const error = new Error(`서버 응답 ${response.status}`);
+    error.status = response.status;
+    // 서버가 알려 준 이유 (입력이 규칙에 맞지 않을 때의 문구). 없으면 비워 둔다
+    try {
+      const data = await response.json();
+      if (typeof data.detail === 'string') error.detail = data.detail;
+    } catch (parseError) {
+      // 본문이 JSON이 아니면 이유 없이 넘긴다
+    }
+    throw error;
+  }
   return response.status === 204 ? null : response.json();
 }
 

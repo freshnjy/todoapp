@@ -265,6 +265,117 @@ select {
   gap: 8px;
 }
 
+/* 입력창과 마이크 버튼을 한 줄에 */
+.add-main {
+  display: flex;
+  gap: 8px;
+}
+
+.add-main .add-input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 음성 입력 */
+.voice-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 48px;
+  padding: 0;
+  color: var(--primary);
+}
+
+.voice-btn[hidden],
+.voice-big[hidden],
+.toast[hidden],
+.toast-action[hidden],
+.toast-close[hidden] {
+  display: none;
+}
+
+/* 듣는 중: 색만이 아니라 채워진 모양과 "듣고 있어요" 글로도 알린다 */
+.voice-btn.is-listening {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--primary-text);
+}
+
+.voice-panel {
+  padding: 10px 12px;
+  background: #eef1fe;
+  border: 1px solid #c9d2fb;
+  border-radius: var(--radius-sm);
+}
+
+.voice-status {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.voice-heard {
+  margin: 4px 0 0;
+  min-height: 1.4em;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--primary);
+  overflow-wrap: anywhere;
+}
+
+.voice-heard:empty {
+  display: none;
+}
+
+.voice-big {
+  width: 100%;
+  min-height: 64px;
+  margin-top: 8px;
+  font-size: 18px;
+}
+
+/* 말로 넣은 뒤의 알림. 화면 아래에 떠서 한 손으로 "취소"를 누를 수 있다 */
+.toast {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 10px 10px 10px 14px;
+  background: var(--text);
+  color: var(--primary-text);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+}
+
+.toast-text {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.toast .btn {
+  flex: none;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.toast .toast-close {
+  background: transparent;
+  border-color: transparent;
+  color: var(--primary-text);
+}
+
 .add-category {
   flex: 1;
   min-width: 0;

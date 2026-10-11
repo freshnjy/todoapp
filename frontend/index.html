@@ -8,6 +8,8 @@
   <!-- habits.js가 먼저다: app.js가 시작할 때 habits.js의 함수를 쓴다 -->
   <script src="habits.js" defer></script>
   <script src="app.js" defer></script>
+  <!-- voice.js는 app.js 다음이다: app.js의 함수와 상태를 쓴다 -->
+  <script src="voice.js" defer></script>
 </head>
 <body>
   <main class="app">
@@ -61,8 +63,23 @@
 
     <!-- 입력 영역 -->
     <form class="card add-form" id="add-form">
-      <input class="add-input" id="add-input" type="text" maxlength="100"
-             placeholder="할 일을 입력하세요" aria-label="할 일 내용" autocomplete="off" autofocus>
+      <!-- 입력창과 마이크 버튼. 마이크는 음성 인식을 쓸 수 있는 브라우저에서만 보인다 (voice.js) -->
+      <div class="add-main">
+        <input class="add-input" id="add-input" type="text" maxlength="100"
+               placeholder="할 일을 입력하세요" aria-label="할 일 내용" autocomplete="off" autofocus>
+        <button class="btn voice-btn" id="voice-btn" type="button" aria-label="말로 입력" aria-pressed="false" hidden>
+          <svg class="voice-icon" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+            <rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/>
+            <path d="M6 11a6 6 0 0 0 12 0M12 17v4M8.5 21h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      <!-- 듣는 동안의 표시와 받아 적은 글 (voice.js가 채움) -->
+      <div class="voice-panel" id="voice-panel" hidden>
+        <p class="voice-status" id="voice-status" aria-live="polite"></p>
+        <p class="voice-heard" id="voice-heard"></p>
+        <button class="btn btn-primary voice-big" id="voice-big" type="button" hidden>눌러서 말하기</button>
+      </div>
       <!-- 고를 것: 카테고리와 반복을 한 줄에. 묶음을 고르면 감춘다 -->
       <div class="add-options" id="add-options">
         <select class="add-category" id="add-category" aria-label="카테고리">
@@ -152,6 +169,13 @@
       <p class="empty" id="habit-empty" hidden></p>
       <p class="habit-legend" id="habit-legend">● 한 날 · 빈칸은 안 한 날 · 흐린 칸은 쉬는 날. 칸을 누르면 표시하거나 지울 수 있어요.</p>
     </section>
+
+    <!-- 말로 넣은 뒤의 알림: "장보기에 '우유' 추가함 · 취소" (voice.js가 채움) -->
+    <div class="toast" id="toast" role="status" hidden>
+      <p class="toast-text" id="toast-text"></p>
+      <button class="btn btn-small toast-action" id="toast-action" type="button"></button>
+      <button class="btn btn-small toast-close" id="toast-close" type="button" aria-label="닫기">✕</button>
+    </div>
 
     <footer class="footer">
       <button class="btn btn-small btn-logout" id="logout" type="button">로그아웃</button>

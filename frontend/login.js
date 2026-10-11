@@ -6,8 +6,11 @@ const passwordInput = document.getElementById('password');
 const loginError = document.getElementById('login-error');
 const loginButton = document.getElementById('login-button');
 
+// 바로 듣기 주소(?voice=1)에서 넘어왔으면 로그인한 뒤 그 주소로 돌아간다
+const wantsVoice = new URLSearchParams(window.location.search).get('voice') === '1';
+
 function goHome() {
-  window.location.replace('./');
+  window.location.replace(wantsVoice ? './?voice=1' : './');
 }
 
 function messageFor(response) {

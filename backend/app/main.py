@@ -13,7 +13,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import auth, groups, habits, routines, todos
+from . import auth, groups, habits, routines, todos, voice
 from .store import Store
 
 FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
@@ -63,7 +63,9 @@ async def require_login(request: Request, call_next):
         return await call_next(request)
     if path.lower().startswith("/api"):
         return JSONResponse({"detail": "로그인이 필요합니다."}, status_code=401)
-    return RedirectResponse("login.html", status_code=303)
+    # 바로 듣기 주소(?voice=1)로 들어왔으면 로그인한 뒤 같은 주소로 돌아가게 표시를 넘긴다.
+    target = "login.html?voice=1" if request.query_params.get("voice") == "1" else "login.html"
+    return RedirectResponse(target, status_code=303)
 
 
 @app.get("/api/health")
@@ -76,5 +78,6 @@ app.include_router(todos.router)
 app.include_router(groups.router)
 app.include_router(routines.router)
 app.include_router(habits.router)
+app.include_router(voice.router)
 
 app.mount("/", RevalidatingStaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
