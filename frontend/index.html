@@ -62,7 +62,7 @@
     <!-- 입력 영역 -->
     <form class="card add-form" id="add-form">
       <input class="add-input" id="add-input" type="text" maxlength="100"
-             placeholder="할 일을 입력하세요" aria-label="할 일 내용" autocomplete="off">
+             placeholder="할 일을 입력하세요" aria-label="할 일 내용" autocomplete="off" autofocus>
       <div class="add-row">
         <select class="add-category" id="add-category" aria-label="카테고리">
           <option value="work">업무</option>
@@ -73,6 +73,22 @@
       </div>
       <!-- 반복 설정 (app.js가 채움). 반복을 고르면 루틴으로 저장된다 -->
       <div id="add-rule"></div>
+      <!-- 묶음 고르기 (app.js가 채움). 하나를 고르고 입력하면 그 묶음의 품목으로 들어간다 -->
+      <div class="group-bar" id="group-bar" role="group" aria-label="넣을 묶음"></div>
+      <!-- 새 묶음 만들기: "+ 묶음"을 누르면 보인다 -->
+      <div class="group-new" id="group-new" hidden>
+        <input class="add-input" id="group-name" type="text" maxlength="20"
+               placeholder="묶음 이름 (예: 장보기)" aria-label="새 묶음 이름" autocomplete="off">
+        <div class="add-row">
+          <select class="add-category" id="group-category" aria-label="새 묶음의 카테고리">
+            <option value="work">업무</option>
+            <option value="personal" selected>개인</option>
+            <option value="growth">성장</option>
+          </select>
+          <button class="btn btn-primary" id="group-create" type="button">만들기</button>
+          <button class="btn" id="group-cancel" type="button">취소</button>
+        </div>
+      </div>
     </form>
 
     <!-- 필터 탭 -->
@@ -90,7 +106,7 @@
       <button class="tab" type="button" data-status="done" aria-pressed="false">완료</button>
     </nav>
 
-    <!-- 목록 (app.js의 render()가 채움). 루틴이 하나도 없으면 루틴 구역과 "할 일" 제목은 감춘다 -->
+    <!-- 목록 (app.js의 render()가 채움). 루틴과 묶음이 하나도 없으면 그 구역과 "할 일" 제목은 감춘다 -->
     <div id="lists">
       <section class="routine-section" id="routine-section" aria-labelledby="routine-title" hidden>
         <h2 class="section-title" id="routine-title">오늘의 루틴</h2>
@@ -100,6 +116,12 @@
           <summary id="rest-summary"></summary>
           <ul class="todo-list" id="rest-list"></ul>
         </details>
+      </section>
+
+      <!-- 묶음: 한 줄로 접혀 있고, 누르면 품목이 펼쳐진다 -->
+      <section class="group-section" id="group-section" aria-labelledby="group-title" hidden>
+        <h2 class="section-title" id="group-title">묶음</h2>
+        <ul class="todo-list" id="group-list"></ul>
       </section>
 
       <h2 class="section-title" id="todo-title" hidden>할 일</h2>

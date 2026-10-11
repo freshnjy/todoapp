@@ -13,7 +13,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import auth, habits, routines, todos
+from . import auth, groups, habits, routines, todos
 from .store import Store
 
 FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
@@ -73,6 +73,7 @@ async def health() -> dict:
 
 app.include_router(auth.router)
 app.include_router(todos.router)
+app.include_router(groups.router)
 app.include_router(routines.router)
 app.include_router(habits.router)
 

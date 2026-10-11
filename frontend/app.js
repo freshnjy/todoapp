@@ -1,6 +1,11 @@
 'use strict';
 
 const MAX_LENGTH = 100;
+// 묶음: 이름 길이, 한 번에 넣는 글의 길이와 품목 수 (서버와 같은 값)
+const GROUP_NAME_MAX_LENGTH = 20;
+const ITEMS_TEXT_MAX_LENGTH = 1000;
+const ITEMS_MAX_COUNT = 30;
+const ADD_PLACEHOLDER = '할 일을 입력하세요';
 const CATEGORY_LABELS = { work: '업무', personal: '개인', growth: '성장' };
 const CATEGORY_VALUES = Object.keys(CATEGORY_LABELS);
 
@@ -39,6 +44,14 @@ const restEl = document.getElementById('rest');
 const restSummaryEl = document.getElementById('rest-summary');
 const restListEl = document.getElementById('rest-list');
 const todoTitleEl = document.getElementById('todo-title');
+const groupBarEl = document.getElementById('group-bar');
+const groupNewEl = document.getElementById('group-new');
+const groupNameInput = document.getElementById('group-name');
+const groupCategorySelect = document.getElementById('group-category');
+const groupCreateBtn = document.getElementById('group-create');
+const groupCancelBtn = document.getElementById('group-cancel');
+const groupSectionEl = document.getElementById('group-section');
+const groupListEl = document.getElementById('group-list');
 const listEl = document.getElementById('todo-list');
 const emptyEl = document.getElementById('empty');
 const clearDoneBtn = document.getElementById('clear-done');
@@ -56,8 +69,15 @@ const logoutBtn = document.getElementById('logout');
 
 const CONNECT_ERROR = '서버와 연결하지 못했어요. 잠시 후 다시 시도해 주세요.';
 
-// 상태: 서버에서 받은 할 일과 루틴. 저장은 서버가 한다 (docs/api.md)
+// 상태: 서버에서 받은 할 일, 묶음, 루틴. 저장은 서버가 한다 (docs/api.md)
+// 할 일: { id, text, category, done, groupId(묶음의 품목이면 그 묶음, 아니면 null) }
 let todos = [];
+// 묶음: { id, text(이름), category }. 장보기처럼 품목이 여러 개인 것을 담는 틀
+let groups = [];
+// 추가 폼에서 고른 묶음 (없으면 일반 할 일로 들어간다). 등록한 뒤에도 그대로 둔다
+let selectedGroup = null;
+// 펼쳐 둔 묶음 (저장하지 않음)
+const openGroups = new Set();
 // 루틴: { id, text, category, rule, due(오늘 하는 날인지), done(오늘 했는지) }
 let routines = [];
 // 서버가 알려 준 오늘 (YYYY-MM-DD). 루틴을 체크할 때 이 날짜로 기록한다
@@ -69,7 +89,7 @@ let busy = false;
 // 화면 상태: 선택한 탭, 상태 필터 (저장하지 않음)
 let currentFilter = 'all';
 let statusFilter = 'all';
-// 수정 중인 항목 { kind: 'todo' | 'routine', id, text, category, rule(루틴만) }
+// 수정 중인 항목 { kind: 'todo' | 'routine' | 'group', id, text, category, rule(루틴만) }
 let editing = null;
 // 사용자가 카테고리를 직접 고르면 이번 할 일은 자동 분류를 멈춘다
 let categoryLocked = false;
@@ -106,22 +126,43 @@ function clearNotice() {
 }
 
 function findItem(kind, id) {
-  const list = kind === 'routine' ? routines : todos;
+  const list = { routine: routines, group: groups }[kind] || todos;
   return list.find((item) => item.id === id);
+}
+
+// 묶음에 속하지 않은 일반 할 일
+function plainTodos() {
+  return todos.filter((todo) => todo.groupId === null);
+}
+
+function groupItems(groupId) {
+  return todos.filter((todo) => todo.groupId === groupId);
 }
 
 // 서버의 목록으로 화면을 다시 그린다 (날짜가 바뀌어 정리된 것, 다른 기기에서 바꾼 것 포함)
 async function refresh() {
-  const [todoData, routineData] = await Promise.all([
+  const [todoData, routineData, groupData] = await Promise.all([
     api('GET', 'api/todos'),
     api('GET', 'api/routines'),
+    api('GET', 'api/groups'),
   ]);
   todos = todoData.todos.map((todo) => ({
     id: String(todo.id),
     text: todo.text,
     category: todo.category,
     done: todo.done,
+    groupId: todo.group_id === null ? null : String(todo.group_id),
   }));
+  groups = groupData.groups.map((group) => ({
+    id: String(group.id),
+    text: group.name,
+    category: group.category,
+  }));
+  // 다른 기기에서 지운 묶음은 고른 것과 펼친 것에서도 뺀다
+  if (selectedGroup && !findItem('group', selectedGroup)) selectedGroup = null;
+  [...openGroups].forEach((id) => {
+    if (!findItem('group', id)) openGroups.delete(id);
+  });
   routines = routineData.routines.map((routine) => ({
     id: String(routine.id),
     text: routine.text,
@@ -322,6 +363,41 @@ function deleteTodo(id) {
   return change(() => api('DELETE', `api/todos/${id}`));
 }
 
+// 묶음 만들기. 성공하면 새 묶음의 id, 실패하면 null
+async function addGroup(name, category) {
+  let created = null;
+  const saved = await change(async () => {
+    created = await api('POST', 'api/groups', { name, category: normalizeCategory(category) });
+  });
+  return saved ? String(created.id) : null;
+}
+
+// 묶음에 품목 넣기. 쉼표로 나누는 것은 서버가 한다
+function addItems(groupId, text) {
+  return change(() => api('POST', `api/groups/${groupId}/items`, { text }));
+}
+
+// 묶음 지우기: 남아 있는 품목도 서버가 함께 지운다
+function deleteGroup(id) {
+  return change(() => api('DELETE', `api/groups/${id}`));
+}
+
+// 쉼표로 나눈 품목 목록. 서버와 같은 규칙으로 미리 확인해 무엇이 틀렸는지 알려 준다.
+// { items } 또는 { error }
+function splitItems(text) {
+  if (text.length > ITEMS_TEXT_MAX_LENGTH) {
+    return { error: `한 번에 ${ITEMS_TEXT_MAX_LENGTH}자까지 넣을 수 있어요.` };
+  }
+  const items = text.split(/[,，、]/).map((piece) => piece.trim()).filter((piece) => piece !== '');
+  if (items.length > ITEMS_MAX_COUNT) {
+    return { error: `한 번에 ${ITEMS_MAX_COUNT}개까지 넣을 수 있어요.` };
+  }
+  if (items.some((piece) => piece.length > MAX_LENGTH)) {
+    return { error: `품목 하나는 ${MAX_LENGTH}자까지 쓸 수 있어요.` };
+  }
+  return { items };
+}
+
 // 루틴 종료: 오늘부터 목록에 나오지 않는다. 지난 기록은 서버에 남는다
 function endRoutine(id) {
   return change(() => api('POST', `api/routines/${id}/end`));
@@ -338,7 +414,7 @@ function toggleItem(kind, id) {
   return change(() => api('PATCH', `api/todos/${id}`, { done: !item.done }));
 }
 
-// 완료 항목 일괄 삭제 (모든 카테고리의 할 일. 루틴은 지우지 않는다)
+// 완료 항목 일괄 삭제 (모든 카테고리의 할 일과 묶음 안의 품목. 루틴은 지우지 않는다)
 function clearDone() {
   return change(() => api('POST', 'api/todos/clear-done'));
 }
@@ -361,10 +437,19 @@ function cancelEdit() {
 async function saveEdit() {
   if (!editing) return false;
   const { kind, id } = editing;
-  const text = editing.text.trim().slice(0, MAX_LENGTH);
+  const maxLength = kind === 'group' ? GROUP_NAME_MAX_LENGTH : MAX_LENGTH;
+  const text = editing.text.trim().slice(0, maxLength);
   if (text === '') return false;
-  const body = { text, category: normalizeCategory(editing.category) };
+  let body = { text, category: normalizeCategory(editing.category) };
   let path = `api/todos/${id}`;
+  const item = findItem(kind, id);
+  if (kind === 'group') {
+    body = { name: text, category: body.category };
+    path = `api/groups/${id}`;
+  } else if (kind === 'todo' && item && item.groupId !== null) {
+    // 품목의 카테고리는 묶음의 것을 따른다
+    body = { text };
+  }
   if (kind === 'routine') {
     const parsed = ruleFromState(editing.rule);
     if (parsed.error) {
@@ -425,6 +510,10 @@ function createItem(kind, item, checkable = true) {
     check.setAttribute('aria-hidden', 'true');
   }
 
+  // 묶음의 품목은 묶음 줄 아래에 들여 쓰고, 카테고리 배지는 묶음 줄에만 둔다
+  const isGroupItem = kind === 'todo' && item.groupId !== null;
+  if (isGroupItem) li.classList.add('is-group-child');
+
   const badge = document.createElement('span');
   badge.className = 'badge';
   badge.textContent = CATEGORY_LABELS[normalizeCategory(item.category)];
@@ -452,8 +541,96 @@ function createItem(kind, item, checkable = true) {
       : createButton('삭제', 'delete', `${item.text} 삭제`, 'btn-danger'),
   );
 
-  li.append(check, badge, main, actions);
+  if (isGroupItem) li.append(check, main, actions);
+  else li.append(check, badge, main, actions);
   return li;
+}
+
+// 묶음 한 줄: "▸ [개인] 장보기 (3)". 누르면 품목이 펼쳐진다. 숫자는 남은 품목 수.
+// 펼쳤을 때만 수정·삭제 버튼을 보여 접힌 줄을 짧게 둔다.
+function createGroupHead(group, isOpen) {
+  const left = groupItems(group.id).filter((item) => !item.done).length;
+  const li = document.createElement('li');
+  li.className = `todo-item group-head cat-${normalizeCategory(group.category)}`;
+  if (isOpen) li.classList.add('is-open');
+  li.dataset.kind = 'group';
+  li.dataset.id = group.id;
+
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'group-toggle';
+  toggle.dataset.action = 'open';
+  toggle.setAttribute('aria-expanded', String(isOpen));
+  toggle.setAttribute('aria-label', `${group.text}, 남은 품목 ${left}개, ${isOpen ? '접기' : '펼치기'}`);
+
+  const arrow = document.createElement('span');
+  arrow.className = 'group-arrow';
+  arrow.textContent = isOpen ? '▾' : '▸';
+
+  const badge = document.createElement('span');
+  badge.className = 'badge';
+  badge.textContent = CATEGORY_LABELS[normalizeCategory(group.category)];
+
+  const name = document.createElement('span');
+  name.className = 'group-name';
+  name.textContent = group.text;
+
+  const count = document.createElement('span');
+  count.className = 'group-count';
+  count.textContent = `(${left})`;
+
+  toggle.append(arrow, badge, name, count);
+  li.append(toggle);
+
+  if (isOpen) {
+    const actions = document.createElement('div');
+    actions.className = 'todo-actions';
+    actions.append(
+      createButton('수정', 'edit', `${group.text} 묶음 수정`),
+      createButton('삭제', 'delete', `${group.text} 묶음 삭제`, 'btn-danger'),
+    );
+    li.append(actions);
+  }
+  return li;
+}
+
+// 펼친 묶음에 보여 줄 품목이 없을 때의 안내 줄
+function createGroupNote(message) {
+  const li = document.createElement('li');
+  li.className = 'group-note';
+  li.textContent = message;
+  return li;
+}
+
+// 추가 폼의 묶음 버튼: 묶음마다 하나 + "+ 묶음". 고른 묶음은 눌린 모양으로 보인다.
+// 묶음을 고르면 카테고리와 반복은 감춘다 (품목은 묶음의 카테고리를 따르고 반복하지 않는다).
+function renderGroupBar() {
+  const chips = groups.map((group) => {
+    const isOn = group.id === selectedGroup;
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'day-chip group-chip';
+    chip.classList.toggle('is-on', isOn);
+    chip.dataset.group = group.id;
+    chip.textContent = group.text;
+    chip.setAttribute('aria-pressed', String(isOn));
+    chip.setAttribute('aria-label', `${group.text} 묶음에 넣기`);
+    return chip;
+  });
+  const newChip = document.createElement('button');
+  newChip.type = 'button';
+  newChip.className = 'day-chip group-chip is-new';
+  newChip.dataset.group = 'new';
+  newChip.textContent = '+ 묶음';
+  newChip.setAttribute('aria-label', '새 묶음 만들기');
+  newChip.setAttribute('aria-expanded', String(!groupNewEl.hidden));
+  groupBarEl.replaceChildren(...chips, newChip);
+
+  const group = selectedGroup ? findItem('group', selectedGroup) : null;
+  categorySelect.hidden = Boolean(group);
+  addRuleEl.hidden = Boolean(group);
+  input.placeholder = group ? `${group.text}에 넣을 것 (쉼표로 여러 개)` : ADD_PLACEHOLDER;
+  input.maxLength = group ? ITEMS_TEXT_MAX_LENGTH : MAX_LENGTH;
 }
 
 // 수정 중인 항목: 그 자리에 입력창 + (루틴이면 반복 설정) + 카테고리 + 저장/취소
@@ -469,11 +646,14 @@ function createEditItem(kind, item) {
   const editInput = document.createElement('input');
   editInput.type = 'text';
   editInput.className = 'add-input';
-  editInput.maxLength = MAX_LENGTH;
+  editInput.maxLength = kind === 'group' ? GROUP_NAME_MAX_LENGTH : MAX_LENGTH;
   editInput.autocomplete = 'off';
   editInput.value = editing.text;
   editInput.dataset.action = 'edit-text';
-  editInput.setAttribute('aria-label', kind === 'routine' ? '루틴 내용 수정' : '할 일 내용 수정');
+  const isGroupItem = kind === 'todo' && item.groupId !== null;
+  if (isGroupItem) li.classList.add('is-group-child');
+  const editLabels = { routine: '루틴 내용 수정', group: '묶음 이름 수정' };
+  editInput.setAttribute('aria-label', editLabels[kind] || (isGroupItem ? '품목 수정' : '할 일 내용 수정'));
 
   const editSelect = document.createElement('select');
   editSelect.className = 'add-category';
@@ -497,7 +677,9 @@ function createEditItem(kind, item) {
 
   const row = document.createElement('div');
   row.className = 'add-row';
-  row.append(editSelect, saveBtn, cancelBtn);
+  // 품목은 카테고리를 따로 고르지 않는다 (묶음의 것을 따른다)
+  if (isGroupItem) row.append(saveBtn, cancelBtn);
+  else row.append(editSelect, saveBtn, cancelBtn);
 
   editForm.append(editInput);
   if (kind === 'routine') {
@@ -519,9 +701,10 @@ function createRow(kind, item, checkable = true) {
   return isEditing(kind, item) ? createEditItem(kind, item) : createItem(kind, item, checkable);
 }
 
-// 오늘 세는 항목: 오늘 하는 루틴 + 할 일 (탭 개수와 진행률에 쓴다)
+// 오늘 세는 항목: 오늘 하는 루틴 + 할 일 (탭 개수와 진행률에 쓴다).
+// 묶음의 품목은 세지 않는다 (품목 여러 개가 진행률을 흔들지 않게). 묶음 줄의 남은 개수로 따로 보여 준다
 function countedItems() {
-  return [...routines.filter((routine) => routine.due), ...todos];
+  return [...routines.filter((routine) => routine.due), ...plainTodos()];
 }
 
 // 탭 버튼: 선택 표시와 카테고리별 개수
@@ -578,7 +761,7 @@ function renderStats(counted, visible) {
 }
 
 // 화면 전체 다시 그리기.
-// 루틴: 만든 순서 그대로 (완료해도 자리를 옮기지 않는다). 할 일: 미완료 → 완료 순, 그룹 안은 서버 순서
+// 루틴: 만든 순서 그대로 (완료해도 자리를 옮기지 않는다). 할 일과 품목: 미완료 → 완료 순, 그 안은 서버 순서
 function render() {
   todayEl.textContent = formatToday();
 
@@ -590,7 +773,7 @@ function render() {
   const shownRoutines = dueRoutines.filter(inCategory).filter(inStatus);
   const restRoutines = routines.filter((routine) => !routine.due).filter(inCategory);
   routineSectionEl.hidden = routines.length === 0;
-  todoTitleEl.hidden = routines.length === 0;
+  todoTitleEl.hidden = routines.length === 0 && groups.length === 0;
   routineListEl.replaceChildren(...shownRoutines.map((routine) => createRow('routine', routine)));
   routineEmptyEl.hidden = shownRoutines.length > 0;
   routineEmptyEl.textContent = dueRoutines.length === 0
@@ -600,12 +783,39 @@ function render() {
   restSummaryEl.textContent = `오늘 해당 없는 루틴 ${restRoutines.length}개`;
   restListEl.replaceChildren(...restRoutines.map((routine) => createRow('routine', routine, false)));
 
-  // 할 일
-  const visibleTodos = todos.filter(inCategory);
-  const ordered = [
-    ...(statusFilter === 'done' ? [] : visibleTodos.filter((todo) => !todo.done)),
-    ...(statusFilter === 'active' ? [] : visibleTodos.filter((todo) => todo.done)),
+  // 미완료 → 완료 순으로, 상태 필터에 맞는 것만
+  const byStatus = (list) => [
+    ...(statusFilter === 'done' ? [] : list.filter((todo) => !todo.done)),
+    ...(statusFilter === 'active' ? [] : list.filter((todo) => todo.done)),
   ];
+
+  // 묶음 구역: 카테고리가 맞는 묶음만. 상태 필터는 묶음 줄을 감추지 않고 펼친 품목에만 적용한다
+  const shownGroups = groups.filter(inCategory);
+  groupSectionEl.hidden = shownGroups.length === 0;
+  const groupRows = [];
+  shownGroups.forEach((group) => {
+    if (isEditing('group', group)) {
+      groupRows.push(createEditItem('group', group));
+      return;
+    }
+    const isOpen = openGroups.has(group.id);
+    groupRows.push(createGroupHead(group, isOpen));
+    if (!isOpen) return;
+    const items = groupItems(group.id);
+    const shownItems = byStatus(items);
+    groupRows.push(...shownItems.map((item) => createRow('todo', item)));
+    if (shownItems.length === 0) {
+      groupRows.push(createGroupNote(items.length === 0
+        ? '품목이 없어요. 위에서 이 묶음을 고르고 적어 보세요'
+        : '해당하는 품목이 없어요'));
+    }
+  });
+  groupListEl.replaceChildren(...groupRows);
+  renderGroupBar();
+
+  // 할 일 (묶음의 품목은 묶음 구역에서 보여 준다)
+  const visibleTodos = plainTodos().filter(inCategory);
+  const ordered = byStatus(visibleTodos);
   listEl.replaceChildren(...ordered.map((todo) => createRow('todo', todo)));
   // 빈 안내: 할 일 자체가 없을 때와 상태 필터로 걸러져 없을 때를 구분
   emptyEl.hidden = ordered.length > 0;
@@ -692,9 +902,27 @@ categorySelect.addEventListener('change', () => {
   categorySelect.classList.remove('is-auto');
 });
 
-// 추가: 반복을 골랐으면 루틴으로, 아니면 할 일로 저장한다
+// 추가: 묶음을 골랐으면 그 묶음의 품목으로, 반복을 골랐으면 루틴으로, 아니면 할 일로 저장한다
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
+  const group = selectedGroup ? findItem('group', selectedGroup) : null;
+  if (group) {
+    const parsedItems = splitItems(input.value.trim());
+    if (parsedItems.error) {
+      showNotice(parsedItems.error);
+      return;
+    }
+    if (parsedItems.items.length === 0) {
+      input.value = '';
+      input.focus();
+      return;
+    }
+    // 저장에 실패하면 입력한 글을 그대로 둔다. 고른 묶음은 이어서 넣을 수 있게 남긴다
+    if (!(await addItems(group.id, parsedItems.items.join(', ')))) return;
+    input.value = '';
+    input.focus();
+    return;
+  }
   const text = input.value.trim().slice(0, MAX_LENGTH);
   if (text === '') {
     input.value = '';
@@ -718,6 +946,63 @@ form.addEventListener('submit', async (event) => {
   input.focus();
 });
 
+// 묶음 버튼: 누르면 고르고, 다시 누르면 푼다. "+ 묶음"은 새 묶음 칸을 연다
+groupBarEl.addEventListener('click', (event) => {
+  const chip = event.target.closest('[data-group]');
+  if (!chip) return;
+  if (chip.dataset.group === 'new') {
+    groupNewEl.hidden = !groupNewEl.hidden;
+    render();
+    if (!groupNewEl.hidden) groupNameInput.focus();
+    return;
+  }
+  selectedGroup = selectedGroup === chip.dataset.group ? null : chip.dataset.group;
+  render();
+  input.focus();
+});
+
+function closeGroupNew() {
+  groupNewEl.hidden = true;
+  groupNameInput.value = '';
+  render();
+}
+
+// 새 묶음을 만들면 바로 그 묶음을 골라 둔다 (이어서 품목을 적을 수 있게)
+async function createGroup() {
+  const name = groupNameInput.value.trim().slice(0, GROUP_NAME_MAX_LENGTH);
+  if (name === '') {
+    groupNameInput.value = '';
+    groupNameInput.focus();
+    return;
+  }
+  const id = await addGroup(name, groupCategorySelect.value);
+  if (id === null) return;
+  selectedGroup = id;
+  closeGroupNew();
+  input.focus();
+}
+
+groupCreateBtn.addEventListener('click', createGroup);
+
+groupCancelBtn.addEventListener('click', () => {
+  closeGroupNew();
+  input.focus();
+});
+
+// 이름 칸에서 Enter는 만들기, Esc는 취소 (추가 폼이 대신 제출되지 않게 막는다. 한글 조합 중에는 무시)
+groupNameInput.addEventListener('keydown', (event) => {
+  if (event.isComposing) return;
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    createGroup();
+  }
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeGroupNew();
+    input.focus();
+  }
+});
+
 // 탭 선택은 화면 상태만 바꾸므로 저장 없이 다시 그린다
 tabsEl.addEventListener('click', (event) => {
   const tab = event.target.closest('.tab');
@@ -736,7 +1021,7 @@ statusTabsEl.addEventListener('click', (event) => {
 clearDoneBtn.addEventListener('click', async () => {
   const doneCount = todos.filter((todo) => todo.done).length;
   if (doneCount === 0) return;
-  if (!confirm(`완료한 할 일 ${doneCount}개를 모두 지울까요?\n(모든 카테고리의 완료 항목이 지워집니다. 루틴은 지워지지 않습니다)`)) return;
+  if (!confirm(`완료한 항목 ${doneCount}개를 모두 지울까요?\n(모든 카테고리의 완료한 할 일과 묶음 안의 완료한 품목이 지워집니다. 루틴과 묶음은 지워지지 않습니다)`)) return;
   await clearDone();
   input.focus();
 });
@@ -779,10 +1064,23 @@ listsEl.addEventListener('click', async (event) => {
   const item = findItem(kind, id);
   if (!item) return;
 
+  if (action === 'open') {
+    if (openGroups.has(id)) openGroups.delete(id);
+    else openGroups.add(id);
+    render();
+    restoreFocus(kind, id, 'open');
+  }
   if (action === 'edit') beginEdit(kind, id);
   if (action === 'cancel') endEdit(kind, id, false);
-  if (action === 'delete') {
-    if (!confirm(`이 할 일을 삭제할까요?\n\n${item.text}`)) return;
+  if (action === 'delete' && kind === 'group') {
+    const count = groupItems(id).length;
+    const warning = count === 0 ? '' : `\n남아 있는 품목 ${count}개도 함께 지워집니다.`;
+    if (!confirm(`이 묶음을 지울까요?${warning}\n\n${item.text}`)) return;
+    await deleteGroup(id);
+    input.focus();
+  } else if (action === 'delete') {
+    const label = item.groupId === null ? '할 일' : '품목';
+    if (!confirm(`이 ${label}을 삭제할까요?\n\n${item.text}`)) return;
     await deleteTodo(id);
     input.focus();
   }
@@ -818,7 +1116,8 @@ document.addEventListener('visibilitychange', () => {
   load();
 });
 
-// 시작: 빈 틀을 먼저 그리고 서버에서 불러온다
+// 시작: 빈 틀을 먼저 그리고 서버에서 불러온다. 바로 적을 수 있게 입력창에 커서를 둔다
 resetAddRule();
 render();
+input.focus();
 load();

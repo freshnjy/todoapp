@@ -5,7 +5,7 @@
 ## 공통
 - 요청과 응답은 JSON (UTF-8).
 - 공개 경로는 `api/health`, `api/session`(POST, GET), 로그인 화면, CSS·JS뿐이다. 나머지 API는 로그인하지 않으면 401 `{"detail": "로그인이 필요합니다."}`, 화면은 303으로 `login.html`.
-- 입력이 규칙에 맞지 않으면 422. 없는 할 일은 404.
+- 입력이 규칙에 맞지 않으면 422. 없는 할 일, 묶음, 루틴은 404.
 - "오늘"은 서버가 Asia/Seoul 기준으로 정한다. 날짜는 `YYYY-MM-DD`.
 
 ## 세션
@@ -26,11 +26,12 @@
 할 일 하나:
 
 ```json
-{"id": 12, "text": "보고서 쓰기", "category": "work", "done": false}
+{"id": 12, "text": "보고서 쓰기", "category": "work", "done": false, "group_id": null}
 ```
 
 - `text`: 앞뒤 공백을 뗀 뒤 1~100자
 - `category`: `work`(업무), `personal`(개인), `growth`(성장)
+- `group_id`: 묶음의 품목이면 그 묶음의 id, 일반 할 일이면 `null`
 
 | 메서드 | 경로 | 요청 | 응답 |
 | --- | --- | --- | --- |
@@ -38,7 +39,9 @@
 | POST | `api/todos` | `{"text": "...", "category": "work"}` (`category`를 빼면 `work`) | 201 할 일 |
 | PATCH | `api/todos/{id}` | `text`, `category`, `done` 중 바꿀 것만 | 200 할 일 |
 | DELETE | `api/todos/{id}` | | 204 |
-| POST | `api/todos/clear-done` | | 200 `{"deleted": 2}` (완료 항목 모두 삭제) |
+| POST | `api/todos/clear-done` | | 200 `{"deleted": 2}` (완료 항목 모두 삭제. 묶음 안의 완료 품목 포함) |
+
+`GET api/todos`는 일반 할 일과 묶음의 품목을 함께 준다. 화면이 `group_id`로 나눠 보여 준다. `POST api/todos`는 항상 일반 할 일을 만들고, 쉼표가 있어도 나누지 않는다.
 
 ### 순서
 `todos`는 서버가 정한 순서로 온다. 화면은 이 순서를 지키면서 미완료를 위, 완료를 아래로 나눠 보여 준다.
@@ -47,6 +50,33 @@
 
 ### 날짜 정리
 완료한 날이 오늘보다 앞선 할 일은 `GET api/todos` 때 지워진다. 오늘 완료한 것은 오늘 동안 남는다. 완료를 풀면 지워지지 않는다.
+
+## 묶음
+
+장보기처럼 품목이 여러 개인 것을 담는 틀. 묶음 하나:
+
+```json
+{"id": 2, "name": "장보기", "category": "personal"}
+```
+
+- `name`: 앞뒤 공백을 뗀 뒤 1~20자
+- `category`: 할 일과 같은 값. 만들 때 빼면 `personal`
+
+| 메서드 | 경로 | 요청 | 응답 |
+| --- | --- | --- | --- |
+| GET | `api/groups` | | 200 `{"groups": [...]}`. 만든 순서 |
+| POST | `api/groups` | `{"name": "장보기", "category": "personal"}` | 201 묶음 |
+| PATCH | `api/groups/{id}` | `name`, `category` 중 바꿀 것만 | 200 묶음 |
+| DELETE | `api/groups/{id}` | | 204. 남아 있는 품목도 함께 지운다 |
+| POST | `api/groups/{id}/items` | `{"text": "우유, 계란, 두부"}` | 201 `{"todos": [...]}` (만든 품목들) |
+
+### 품목
+- 품목은 `group_id`가 있는 할 일이다. 체크, 내용 수정, 삭제는 할 일의 `PATCH`/`DELETE api/todos/{id}`를 쓴다.
+- `text`를 쉼표(`,` `，` `、`)로 나눠 품목을 만든다. 조각의 앞뒤 공백을 떼고 빈 조각은 버린다. 쉼표가 없으면 품목 하나다.
+- 남는 조각이 없거나, 조각 하나가 100자를 넘거나, 전체가 1000자를 넘거나, 30개를 넘으면 422 (하나도 만들지 않는다).
+- 새 품목은 적은 순서대로 목록의 맨 앞에 온다.
+- 품목의 카테고리는 묶음의 것을 따른다. 묶음의 카테고리를 바꾸면 품목도 함께 바뀌고, 품목에 `category`를 보내도 바뀌지 않는다.
+- 완료한 품목은 다른 할 일처럼 다음 날 지워진다. 묶음은 비어도 남는다.
 
 ## 루틴 (반복 할 일)
 
