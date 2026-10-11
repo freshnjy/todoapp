@@ -107,11 +107,12 @@ select {
   font-size: 13px;
 }
 
-/* 통계 카드 */
+/* 통계 카드: 목록이 화면 위쪽에서 시작하도록 세 줄로 짧게 둔다
+   (제목·요약·백분율 한 줄, 막대 한 줄, 카테고리 세 칸 한 줄) */
 .stats {
   --accent: var(--primary);
-  margin-bottom: 16px;
-  padding: 18px 18px 14px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
 }
 
 .stats[data-filter="work"] {
@@ -128,28 +129,38 @@ select {
 
 .stats-head {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
+}
+
+/* 제목과 요약을 한 줄에 */
+.stats-head > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  min-width: 0;
 }
 
 .stats-label {
   margin: 0;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-sub);
 }
 
 .stats-summary {
-  margin: 2px 0 0;
+  margin: 0;
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .stats-percent {
+  flex-shrink: 0;
   margin: 0;
-  font-size: 34px;
+  font-size: 22px;
   font-weight: 800;
   line-height: 1;
   letter-spacing: -0.03em;
@@ -157,7 +168,7 @@ select {
 }
 
 .progress-bar {
-  height: 10px;
+  height: 6px;
   background: var(--track);
   border-radius: 999px;
   overflow: hidden;
@@ -171,34 +182,33 @@ select {
   transition: width 0.25s, background-color 0.25s;
 }
 
-/* 카테고리별 현황: 왼쪽 세로줄 + 작은 막대 */
+/* 카테고리별 현황: 한 줄에 세 칸. 왼쪽 세로줄 + 이름 + 개수 */
 .stats-list {
-  margin: 14px 0 0;
-  padding: 12px 0 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
   list-style: none;
-  border-top: 1px solid var(--border);
 }
 
 .stats-row {
-  display: grid;
-  grid-template-columns: 40px 1fr auto;
+  display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 5px 0 5px 10px;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 1px 0 1px 8px;
   border-left: 3px solid var(--cat);
   font-size: 14px;
 }
 
-.stats-row + .stats-row {
-  margin-top: 6px;
-}
-
 .stats-name {
-  font-weight: 600;
+  font-weight: 700;
 }
 
+/* 작은 막대는 짧은 카드에서는 쓰지 않는다 (개수로 충분하다) */
 .mini-bar {
-  display: block;
+  display: none;
   height: 6px;
   background: var(--track);
   border-radius: 999px;
@@ -215,8 +225,7 @@ select {
 }
 
 .stats-count {
-  min-width: 44px;
-  color: var(--text-sub);
+  font-weight: 700;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
@@ -704,9 +713,26 @@ select {
   gap: 8px;
 }
 
-/* 묶음을 고르면 카테고리 칸이 없어지므로 추가 버튼이 줄을 채운다 */
-.add-category[hidden] + .btn {
-  flex: 1;
+/* 추가 폼의 고를 것: 카테고리와 반복을 한 줄 두 칸에 둔다.
+   반복의 요일 버튼과 매월 날짜는 그 아래에 한 줄을 다 쓴다 */
+.add-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.add-options #add-rule,
+.add-options .rule-fields {
+  display: contents;
+}
+
+.add-options .rule-days,
+.add-options .rule-month {
+  grid-column: 1 / -1;
+}
+
+.add-submit {
+  width: 100%;
 }
 
 /* 묶음 구역: 접힌 한 줄(이름과 남은 개수), 펼치면 아래에 품목 */
@@ -1118,7 +1144,7 @@ button.habit-mark {
   }
 
   .stats-percent {
-    font-size: 40px;
+    font-size: 26px;
   }
 
   .add-form {

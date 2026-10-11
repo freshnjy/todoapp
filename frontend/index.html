@@ -63,16 +63,16 @@
     <form class="card add-form" id="add-form">
       <input class="add-input" id="add-input" type="text" maxlength="100"
              placeholder="할 일을 입력하세요" aria-label="할 일 내용" autocomplete="off" autofocus>
-      <div class="add-row">
+      <!-- 고를 것: 카테고리와 반복을 한 줄에. 묶음을 고르면 감춘다 -->
+      <div class="add-options" id="add-options">
         <select class="add-category" id="add-category" aria-label="카테고리">
           <option value="work">업무</option>
           <option value="personal">개인</option>
           <option value="growth">성장</option>
         </select>
-        <button class="btn btn-primary" type="submit">추가</button>
+        <!-- 반복 설정 (app.js가 채움). 반복을 고르면 루틴으로 저장된다 -->
+        <div id="add-rule"></div>
       </div>
-      <!-- 반복 설정 (app.js가 채움). 반복을 고르면 루틴으로 저장된다 -->
-      <div id="add-rule"></div>
       <!-- 묶음 고르기 (app.js가 채움). 하나를 고르고 입력하면 그 묶음의 품목으로 들어간다 -->
       <div class="group-bar" id="group-bar" role="group" aria-label="넣을 묶음"></div>
       <!-- 새 묶음 만들기: "+ 묶음"을 누르면 보인다 -->
@@ -89,6 +89,8 @@
           <button class="btn" id="group-cancel" type="button">취소</button>
         </div>
       </div>
+      <!-- 추가 버튼은 고를 것을 다 지난 맨 아래에 둔다 -->
+      <button class="btn btn-primary add-submit" type="submit">추가</button>
     </form>
 
     <!-- 필터 탭 -->

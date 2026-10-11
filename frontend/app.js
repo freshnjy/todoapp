@@ -36,6 +36,7 @@ const form = document.getElementById('add-form');
 const input = document.getElementById('add-input');
 const categorySelect = document.getElementById('add-category');
 const addRuleEl = document.getElementById('add-rule');
+const addOptionsEl = document.getElementById('add-options');
 const listsEl = document.getElementById('lists');
 const routineSectionEl = document.getElementById('routine-section');
 const routineListEl = document.getElementById('routine-list');
@@ -638,8 +639,7 @@ function renderGroupBar() {
   groupBarEl.replaceChildren(plainChip, ...chips, newChip);
 
   const group = selectedGroup ? findItem('group', selectedGroup) : null;
-  categorySelect.hidden = Boolean(group);
-  addRuleEl.hidden = Boolean(group);
+  addOptionsEl.hidden = Boolean(group);
   input.placeholder = group ? `${group.text}에 넣을 것 (쉼표로 여러 개)` : ADD_PLACEHOLDER;
   input.maxLength = group ? ITEMS_TEXT_MAX_LENGTH : MAX_LENGTH;
 }
