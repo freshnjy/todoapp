@@ -602,9 +602,20 @@ function createGroupNote(message) {
   return li;
 }
 
-// 추가 폼의 묶음 버튼: 묶음마다 하나 + "+ 묶음". 고른 묶음은 눌린 모양으로 보인다.
+// 추가 폼의 묶음 버튼: "할 일" + 묶음마다 하나 + "+ 묶음". 지금 어디에 넣는지 눌린 모양으로 보인다.
+// "할 일"은 일반 할 일과 루틴을 넣는 기본 상태다. 묶음이 하나도 없으면 고를 것이 없으니 보이지 않는다.
 // 묶음을 고르면 카테고리와 반복은 감춘다 (품목은 묶음의 카테고리를 따르고 반복하지 않는다).
 function renderGroupBar() {
+  const plainChip = document.createElement('button');
+  plainChip.type = 'button';
+  plainChip.className = 'day-chip group-chip';
+  plainChip.classList.toggle('is-on', selectedGroup === null);
+  plainChip.dataset.group = 'none';
+  plainChip.textContent = '할 일';
+  plainChip.hidden = groups.length === 0;
+  plainChip.setAttribute('aria-pressed', String(selectedGroup === null));
+  plainChip.setAttribute('aria-label', '묶음 없이 할 일이나 루틴으로 넣기');
+
   const chips = groups.map((group) => {
     const isOn = group.id === selectedGroup;
     const chip = document.createElement('button');
@@ -624,7 +635,7 @@ function renderGroupBar() {
   newChip.textContent = '+ 묶음';
   newChip.setAttribute('aria-label', '새 묶음 만들기');
   newChip.setAttribute('aria-expanded', String(!groupNewEl.hidden));
-  groupBarEl.replaceChildren(...chips, newChip);
+  groupBarEl.replaceChildren(plainChip, ...chips, newChip);
 
   const group = selectedGroup ? findItem('group', selectedGroup) : null;
   categorySelect.hidden = Boolean(group);
@@ -946,7 +957,7 @@ form.addEventListener('submit', async (event) => {
   input.focus();
 });
 
-// 묶음 버튼: 누르면 고르고, 다시 누르면 푼다. "+ 묶음"은 새 묶음 칸을 연다
+// 묶음 버튼: 누르면 그 묶음에 넣는다. "+ 묶음"은 새 묶음 칸을 연다
 groupBarEl.addEventListener('click', (event) => {
   const chip = event.target.closest('[data-group]');
   if (!chip) return;
@@ -956,7 +967,9 @@ groupBarEl.addEventListener('click', (event) => {
     if (!groupNewEl.hidden) groupNameInput.focus();
     return;
   }
-  selectedGroup = selectedGroup === chip.dataset.group ? null : chip.dataset.group;
+  // "할 일"을 누르거나 고른 묶음을 다시 누르면 일반 할 일로 돌아간다
+  const picked = chip.dataset.group;
+  selectedGroup = picked === 'none' || picked === selectedGroup ? null : picked;
   render();
   input.focus();
 });
