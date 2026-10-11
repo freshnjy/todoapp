@@ -23,6 +23,8 @@ _TAIL = re.compile(
 )
 # 묶음 이름 뒤에 붙는 말
 _PARTICLE = r"(?:에다가|에다|에는|에도|에)"
+# 묶음 이름 뒤에서는 음성 인식이 "에"를 잘못 받아 적은 것("의", "애", "예", "엔")도 함께 뗀다.
+_GROUP_PARTICLE = r"(?:에다가|에다|에는|에도|에|의|애|예|엔)"
 # "○○에 △△" 꼴. ○○이 묶음이 아닐 때 없는 묶음의 이름으로 본다.
 _PLACE = re.compile(rf"^(\S.*?){_PARTICLE}\s+(\S.*)$")
 _COMMAS = re.compile(r"[,，、]")
@@ -105,11 +107,14 @@ def split_spoken_items(text: str) -> list[str]:
 
 
 def _match_group(sentence: str, name: str) -> Optional[tuple[str, bool]]:
-    """문장이 이 묶음 이름으로 시작하면 (나머지 글, "에"가 붙었는지)를 돌려준다. 띄어쓰기는 무시한다."""
+    """문장이 이 묶음 이름으로 시작하면 (나머지 글, "에"가 붙었는지)를 돌려준다. 띄어쓰기는 무시한다.
+
+    "에"는 이름에 붙어 있어도("짐싸기에"), 떨어져 있어도("짐싸기 에") 뗀다.
+    """
     chars = [re.escape(char) for char in name if not char.isspace()]
     if not chars:
         return None
-    match = re.match(rf"{r'\s*'.join(chars)}({_PARTICLE})?(?:\s+|$)", sentence, re.IGNORECASE)
+    match = re.match(rf"{r'\s*'.join(chars)}\s*({_GROUP_PARTICLE})?(?:\s+|$)", sentence, re.IGNORECASE)
     if match is None:
         return None
     return sentence[match.end():], match.group(1) is not None
@@ -118,7 +123,8 @@ def _match_group(sentence: str, name: str) -> Optional[tuple[str, bool]]:
 def parse(sentence: str, groups: list[dict]) -> Parsed:
     """받아 적은 문장을 가른다. groups는 [{"id", "name", ...}].
 
-    - 이미 있는 묶음 이름으로 시작하고, 뒤에 "에"가 붙었거나 꼬리말("추가해줘")이 있으면 그 묶음의 품목
+    - 이미 있는 묶음 이름으로 시작하면 그 묶음의 품목. "에"나 꼬리말("추가해줘")이 없어도 된다
+      (음성 인식이 "에"를 자주 빠뜨리거나 다르게 받아 적는다)
     - "○○에 △△ 추가해줘" 꼴인데 ○○이 묶음이 아니면 없는 묶음
     - 그 밖에는 말한 그대로 일반 할 일
     """
@@ -133,8 +139,10 @@ def parse(sentence: str, groups: list[dict]) -> Parsed:
         if matched is None:
             continue
         rest, has_particle = matched
-        if has_particle or tail:
-            return Parsed("group", group_id=group["id"], name=group["name"], items=split_spoken_items(rest))
+        items = split_spoken_items(rest)
+        # 묶음 이름만 말한 것("짐싸기")은 품목이 없으니 넘어간다. "짐싸기에 추가해줘"는 품목이 없다고 알린다.
+        if items or has_particle or tail:
+            return Parsed("group", group_id=group["id"], name=group["name"], items=items)
 
     if tail:
         place = _PLACE.match(body)

@@ -28,6 +28,13 @@ GROUPS = [
         ("장보기 우유 추가해줘", ["우유"]),
         ("장 보기에 우유 추가해줘", ["우유"]),
         ("  장보기에   딸기 우유  추가해줘 ", ["딸기 우유"]),
+        # 음성 인식이 "에"를 빠뜨리거나 다르게 받아 적어도 묶음으로 들어간다
+        ("장보기 우유", ["우유"]),
+        ("장보기 에 우유 추가", ["우유"]),
+        ("장보기의 우유 추가", ["우유"]),
+        ("장보기애 우유 추가", ["우유"]),
+        ("장보기 예 우유 추가해 줘", ["우유"]),
+        ("장보기엔 우유", ["우유"]),
     ],
 )
 def test_sentence_goes_to_the_group(sentence, items):
@@ -51,11 +58,18 @@ def test_sentence_without_a_group_is_a_plain_todo(sentence):
     assert (parsed.kind, parsed.text) == ("todo", sentence)
 
 
-def test_group_name_alone_at_the_start_is_not_enough():
-    """ "에"도 꼬리말도 없으면 묶음 이름으로 시작해도 할 일이다 (예: 묶음 "운동"과 할 일 "운동 가기")."""
-    groups = [{"id": 9, "name": "운동", "category": "personal"}]
-    assert parse("운동 가기", groups).kind == "todo"
-    assert parse("운동에 줄넘기", groups).kind == "group"
+def test_group_name_at_the_start_is_enough():
+    """ "에"도 꼬리말도 없어도 묶음 이름으로 시작하면 그 묶음에 넣는다."""
+    groups = [{"id": 9, "name": "짐싸기", "category": "personal"}]
+    for sentence in ("짐싸기 여권", "짐 싸기 여권 추가", "짐싸기의 여권 추가", "짐싸기에 여권 추가"):
+        parsed = parse(sentence, groups)
+        assert (parsed.kind, parsed.group_id, parsed.items) == ("group", 9, ["여권"]), sentence
+
+
+def test_group_name_alone_is_a_plain_todo():
+    assert parse("장보기", GROUPS).kind == "todo"
+    # 이름이 다른 낱말의 앞부분일 뿐이면 묶음이 아니다
+    assert parse("장보기용 가방 사기", GROUPS).kind == "todo"
 
 
 @pytest.mark.parametrize(
