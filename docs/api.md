@@ -155,6 +155,30 @@
 - 종료한 루틴도 종료 전 날짜의 기록은 고칠 수 있다. 종료한 루틴의 수정과 재종료는 404.
 - 할 일과 달리 루틴은 날짜가 바뀌어도 지워지지 않는다. `api/todos/clear-done`도 루틴을 건드리지 않는다.
 
+## JY Bridge용 요약 (7단계, 구현 전)
+
+| 메서드 | 경로 | 응답 |
+| --- | --- | --- |
+| GET | `api/bridge-summary` | 200 아래 모양 |
+
+```json
+{
+  "date": "2026-10-11",
+  "routines": {"due": 5, "done": 2, "remaining": ["스트레칭", "영어 단어", "독서"]},
+  "todos": {"remaining_count": 3, "remaining": ["치과 예약하기", "보고서 초안", "택배 보내기"]}
+}
+```
+
+- 인증은 헤더 `Authorization: Bearer {TODO_BRIDGE_TOKEN}`뿐이다. 상수 시간 비교(`secrets.compare_digest`). 헤더가 없거나 틀리면 401. 로그인 쿠키가 있어도 토큰이 없으면 401이다.
+- `TODO_BRIDGE_TOKEN`이 비어 있으면 어떤 요청에도 401이다 (꺼진 상태).
+- 이 토큰은 이 경로에서만 통한다. 다른 API는 전과 같이 쿠키만 받는다.
+- 조회만 한다. 아무것도 지우거나 고치지 않는다 (`GET api/todos`의 날짜 정리를 하지 않는다).
+- `date`: 서버의 오늘 (Asia/Seoul).
+- `routines.due`: 오늘 하는 루틴 수. `done`: 그중 오늘 한 수. `remaining`: 아직 안 한 루틴의 이름, 앱의 "오늘의 루틴" 순서대로. 종료한 루틴과 오늘 하는 날이 아닌 루틴은 세지 않는다.
+- `todos.remaining_count`: 완료하지 않은 일반 할 일 수. `remaining`: 그 이름, 앱 목록 순서대로. 묶음의 품목(`group_id`가 있는 것)은 세지 않는다.
+- `remaining`은 각각 10개까지만 보낸다. 개수(`due`, `done`, `remaining_count`)는 전체를 센다.
+- 로그에 이름을 남기지 않는다.
+
 ## 해빗트래커
 
 | 메서드 | 경로 | 응답 |
