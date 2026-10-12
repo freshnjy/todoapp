@@ -368,6 +368,35 @@ class Store:
                 )
             return "ok"
 
+    def bridge_summary(self, today: str, max_names: int) -> dict[str, Any]:
+        """JY Bridge가 읽어 가는 오늘 요약. 읽기만 한다 (list_todos와 달리 지난 완료 항목을 지우지 않는다).
+
+        루틴은 오늘 하는 것만, 할 일은 묶음 품목이 아닌 것만 센다. 이름은 max_names개까지만 담고 개수는 전체를 센다.
+        """
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT id, text, category FROM routines "
+                "WHERE created_on <= ? AND (ended_on IS NULL OR ended_on > ?) ORDER BY id",
+                (today, today),
+            ).fetchall()
+            due = [r for r in (self._routine(conn, row, today) for row in rows) if r["due_today"]]
+            todos = [
+                row[0]
+                for row in conn.execute(
+                    "SELECT text FROM todos WHERE done = 0 AND group_id IS NULL ORDER BY sort_key, id"
+                )
+            ]
+        left = [r["text"] for r in due if not r["done_today"]]
+        return {
+            "date": today,
+            "routines": {
+                "due": len(due),
+                "done": len(due) - len(left),
+                "remaining": left[:max_names],
+            },
+            "todos": {"remaining_count": len(todos), "remaining": todos[:max_names]},
+        }
+
     def habits(self, start: str, end: str, today: str) -> list[dict[str, Any]]:
         """start~end 기간에 살아 있던 루틴(종료한 것 포함)의 날짜별 상태, 연속 달성일, 달성 수."""
         first, last, now = (date.fromisoformat(value) for value in (start, end, today))

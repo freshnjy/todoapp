@@ -12,7 +12,7 @@
 
 ## 폴더 구조
 ```
-backend/app/        FastAPI 앱 (main.py, auth.py, store.py, clock.py, rules.py, todos.py, groups.py, routines.py, habits.py, voice.py)
+backend/app/        FastAPI 앱 (main.py, auth.py, store.py, clock.py, rules.py, todos.py, groups.py, routines.py, habits.py, voice.py, bridge.py)
 frontend/           index.html, login.html, style.css, app.js, habits.js, voice.js, login.js
 tests/              pytest
 deploy/             nginx, systemd 예시 (실제 값 없음)
@@ -27,7 +27,7 @@ docs/               PRD.md, tasks.md, api.md, deploy.md
 
 ## 반드시 지킬 것
 - 비밀 값(비밀번호, 세션 비밀 값)은 환경 변수로만 읽는다. 코드, 테스트, 문서, 커밋에 실제 값을 적지 않는다. `.env`는 커밋하지 않는다.
-- 인증 없는 요청에는 데이터를 주지 않는다. 공개 경로는 로그인 화면, 정적 파일(CSS, JS, 아이콘), `api/health`뿐이다.
+- 인증 없는 요청에는 데이터를 주지 않는다. 공개 경로는 로그인 화면, 정적 파일(CSS, JS, 아이콘), `api/health`뿐이다. `api/bridge-summary`는 로그인 대신 전용 토큰(`TODO_BRIDGE_TOKEN`)으로만 연다.
 - 로그에 할 일 내용을 남기지 않는다.
 - 날짜는 Asia/Seoul 기준이다. "오늘"이 무엇인지는 서버가 정한다 (기기마다 달라지지 않게).
 

@@ -42,12 +42,13 @@ python3 -c 'import secrets; print(secrets.token_urlsafe(48))'    # 나온 값을
 nano .env
 ```
 
-`.env`에서 채울 것은 두 줄이다. 나머지는 그대로 둔다.
+`.env`에서 꼭 채울 것은 위 두 줄이다. 나머지는 그대로 둔다.
 
 | 변수 | 값 |
 | --- | --- |
 | `TODO_PASSWORD` | 로그인 비밀번호. 직접 정한다 |
 | `TODO_SESSION_SECRET` | 바로 위 명령으로 만든 값 |
+| `TODO_BRIDGE_TOKEN` | (7단계부터, JY Bridge에 요약을 내줄 때만) 같은 명령으로 하나 더 만든 값. JY Bridge의 `.env`에도 같은 값을 넣는다. 비워 두면 요약이 꺼진다 |
 
 쓰는 규칙 (systemd가 읽는다): 줄 끝에 주석을 붙이지 않는다. 값에 따옴표를 쓰지 않는다. `=` 앞뒤에 공백을 넣지 않는다.
 

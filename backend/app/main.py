@@ -13,7 +13,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import auth, groups, habits, routines, todos, voice
+from . import auth, bridge, groups, habits, routines, todos, voice
 from .store import Store
 
 FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
@@ -51,6 +51,9 @@ def is_public(method: str, path: str) -> bool:
         return True
     if path == "/api/session":
         return method != "DELETE"
+    # JY Bridge용 요약은 쿠키가 아니라 전용 토큰으로 연다. 토큰 확인은 그 경로가 직접 한다.
+    if path == bridge.PATH:
+        return method == "GET"
     if path.startswith("/api"):
         return False
     return path in PUBLIC_PAGES or path.endswith(PUBLIC_ASSET_SUFFIXES)
@@ -79,5 +82,6 @@ app.include_router(groups.router)
 app.include_router(routines.router)
 app.include_router(habits.router)
 app.include_router(voice.router)
+app.include_router(bridge.router)
 
 app.mount("/", RevalidatingStaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

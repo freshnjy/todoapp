@@ -20,6 +20,7 @@ def todo_env(monkeypatch, tmp_path):
         "TODO_COOKIE_PATH",
         "TODO_COOKIE_SECURE",
         "TODO_DATA_DIR",
+        "TODO_BRIDGE_TOKEN",
     ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("TODO_PASSWORD", TEST_PASSWORD)
