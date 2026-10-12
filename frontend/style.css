@@ -46,7 +46,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
   color: inherit;
 }
@@ -865,7 +866,7 @@ select {
   border-radius: var(--radius-sm);
 }
 
-/* 화면 전환(오늘 / 습관)과 습관의 기간(주간 / 월간): 상태 필터와 같은 모양, 두 칸.
+/* 화면 전환(오늘 / 습관 / 저장소)과 습관의 기간(주간 / 월간): 상태 필터와 같은 모양.
    헤더와 도구 줄 안에 들어가도록 폭을 정해 둔다 */
 .view-tabs,
 .habit-modes {
@@ -875,7 +876,12 @@ select {
 }
 
 .view-tabs {
-  width: 148px;
+  grid-template-columns: repeat(3, auto);
+  width: auto;
+}
+
+.view-tabs .tab {
+  padding: 0 10px;
 }
 
 .habit-modes {
@@ -1134,6 +1140,203 @@ button.habit-mark {
    ===================================================================== */
 
 /* 태블릿·작은 노트북: 틀을 넓히고 마우스에 맞게 조금 촘촘하게 */
+/* 저장소(메모). 카테고리가 없으므로 메모만의 색(노란 메모지)을 쓴다 */
+.memo-new {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.memo-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.memo-card {
+  --cat: #c98a1b;
+  --cat-bg: #fdf3e1;
+  margin-bottom: 10px;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  box-shadow: inset 4px 0 0 var(--cat), var(--shadow);
+}
+
+.memo-card.is-editing {
+  padding: 12px 12px 12px 16px;
+}
+
+.memo-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  min-height: var(--touch);
+  padding: 8px 12px 8px 4px;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.memo-head:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.memo-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
+.memo-title {
+  min-width: 0;
+  font-weight: 800;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+/* 제목 없음: 흐리게 하지 않고 회색 굵은 글씨로 */
+.memo-title.is-untitled {
+  color: var(--text-sub);
+}
+
+.memo-count {
+  flex-shrink: 0;
+  font-weight: 800;
+  color: var(--cat);
+}
+
+.memo-date {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.memo-preview {
+  display: block;
+  width: 100%;
+  padding-left: 38px;
+  overflow: hidden;
+  color: var(--text-sub);
+  font-size: 14px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.memo-inside {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 10px 10px 14px;
+}
+
+.memo-body {
+  margin: 0;
+  padding: 0 4px;
+  white-space: pre-wrap;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.memo-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--border);
+}
+
+.memo-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.memo-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  min-height: var(--touch);
+  margin-left: -8px;
+  cursor: pointer;
+}
+
+.memo-item .btn-small {
+  padding: 0 8px;
+}
+
+.memo-item.is-done .todo-text {
+  text-decoration: line-through;
+  color: var(--text-sub);
+}
+
+.memo-item-date {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-sub);
+}
+
+.memo-item.is-editing {
+  padding: 6px 0;
+}
+
+.memo-item-form,
+.memo-add {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.memo-item-form .add-input,
+.memo-add .add-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.memo-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.memo-meta {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-sub);
+}
+
+.memo-foot .todo-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+.memo-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.memo-body-input {
+  resize: vertical;
+  min-height: 88px;
+  line-height: 1.5;
+  font-family: inherit;
+}
+
 @media (min-width: 900px) {
   :root {
     --touch: 40px;
@@ -1163,8 +1366,8 @@ button.habit-mark {
     font-weight: 600;
   }
 
-  .view-tabs {
-    width: 200px;
+  .view-tabs .tab {
+    padding: 0 18px;
   }
 
   .view-tabs .tab,
@@ -1300,6 +1503,27 @@ button.habit-mark {
 
   .empty {
     padding: 56px 16px;
+  }
+
+  /* 저장소: 새 메모 버튼은 짧게, 메모는 넓이에 맞춰 여러 칼럼으로 */
+  .memo-new {
+    width: auto;
+    margin-bottom: 16px;
+  }
+
+  .memo-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+    gap: 12px 14px;
+    align-items: start;
+  }
+
+  .memo-card {
+    margin-bottom: 0;
+  }
+
+  .memo-head:hover {
+    background: #f9fafc;
   }
 
   /* 습관 화면 */

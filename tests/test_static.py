@@ -15,7 +15,7 @@ def test_index_is_served_at_root(logged_in):
     assert "<title>오늘 할 일</title>" in res.text
 
 
-@pytest.mark.parametrize("name", ["index.html", "login.html", "style.css", "app.js", "habits.js", "voice.js", "login.js"])
+@pytest.mark.parametrize("name", ["index.html", "login.html", "style.css", "app.js", "habits.js", "memos.js", "voice.js", "login.js"])
 def test_frontend_files_are_served(logged_in, name):
     res = logged_in.get(f"/{name}")
     assert res.status_code == 200

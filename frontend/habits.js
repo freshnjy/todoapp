@@ -25,7 +25,7 @@ const habitListEl = document.getElementById('habit-list');
 const habitEmptyEl = document.getElementById('habit-empty');
 const habitLegendEl = document.getElementById('habit-legend');
 
-// 보고 있는 화면: 'today' | 'habits'
+// 보고 있는 화면: 'today' | 'habits' | 'memos'(저장소, memos.js)
 let currentView = 'today';
 // 보기 기간: 'week' | 'month'
 let habitMode = 'week';
@@ -248,8 +248,10 @@ viewTabsEl.addEventListener('click', (event) => {
   if (!tab || tab.dataset.view === currentView) return;
   currentView = tab.dataset.view;
   renderHabits();
+  renderMemos();
   // 화면을 바꿀 때마다 서버의 최신 상태를 받는다 (습관 화면에서 고친 것이 오늘 화면에도 보이게)
   if (currentView === 'habits') showHabits();
+  else if (currentView === 'memos') showMemos();
   else load();
 });
 

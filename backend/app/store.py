@@ -1,4 +1,4 @@
-"""SQLite 저장소. 할 일, 묶음, 루틴을 둔다.
+"""SQLite 저장소. 할 일, 묶음, 루틴, 저장소의 메모를 둔다.
 
 순서 규칙은 화면이 localStorage를 쓰던 때와 같다: 새 항목은 맨 위, 완료를 바꾼 항목은 맨 아래.
 `sort_key`가 작을수록 위에 온다. (미완료와 완료를 나눠 보여 주는 것은 화면이 한다.)
@@ -40,6 +40,19 @@ def _to_todo(row: tuple) -> dict[str, Any]:
 
 def _to_group(row: tuple) -> dict[str, Any]:
     return {"id": row[0], "name": row[1], "category": row[2]}
+
+
+def title_key(title: str) -> str:
+    """메모 제목을 견줄 때 쓰는 값. 띄어쓰기와 대소문자를 무시한다 ("장 보기" = "장보기")."""
+    return "".join(title.split()).casefold()
+
+
+class MemoError(Exception):
+    """메모를 저장할 수 없는 이유. reason은 "duplicate"(같은 제목) 또는 "empty"(모두 비었음)."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
 
 
 class Store:
@@ -104,6 +117,33 @@ class Store:
                     routine_id INTEGER NOT NULL,
                     day TEXT NOT NULL,
                     PRIMARY KEY (routine_id, day)
+                )
+                """
+            )
+            # 저장소의 메모. title이 NULL이면 "제목 없음". 시각은 Asia/Seoul (clock.now()).
+            # touched: 고칠 때마다 커지는 번호. 마지막으로 고친 메모를 위에 둘 때 쓴다 (시각은 초 단위라 겹칠 수 있다).
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS memos (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT,
+                    body TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    touched INTEGER NOT NULL
+                )
+                """
+            )
+            # 메모의 품목. 체크해도 지우지 않는다. position이 작을수록 위 (넣은 순서).
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS memo_items (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    memo_id INTEGER NOT NULL,
+                    text TEXT NOT NULL,
+                    done INTEGER NOT NULL DEFAULT 0,
+                    position INTEGER NOT NULL,
+                    created_at TEXT NOT NULL
                 )
                 """
             )
@@ -251,6 +291,157 @@ class Store:
                     }
                 )
         return items
+
+    # ---------- 저장소 (메모) ----------
+
+    @staticmethod
+    def _memo(conn: sqlite3.Connection, memo_id: int) -> dict[str, Any] | None:
+        row = conn.execute(
+            "SELECT id, title, body, created_at, updated_at FROM memos WHERE id = ?", (memo_id,)
+        ).fetchone()
+        if row is None:
+            return None
+        items = [
+            {"id": item[0], "text": item[1], "done": bool(item[2]), "created_at": item[3]}
+            for item in conn.execute(
+                "SELECT id, text, done, created_at FROM memo_items WHERE memo_id = ? ORDER BY position, id",
+                (memo_id,),
+            )
+        ]
+        return {
+            "id": row[0],
+            "title": row[1],
+            "body": row[2],
+            "created_at": row[3],
+            "updated_at": row[4],
+            "items": items,
+        }
+
+    @staticmethod
+    def _touch(conn: sqlite3.Connection, memo_id: int, now: str) -> None:
+        """고친 시각을 바꾸고 목록 맨 위로 올린다."""
+        top = conn.execute("SELECT COALESCE(MAX(touched), 0) + 1 FROM memos").fetchone()[0]
+        conn.execute("UPDATE memos SET updated_at = ?, touched = ? WHERE id = ?", (now, top, memo_id))
+
+    @staticmethod
+    def _title_taken(conn: sqlite3.Connection, title: str | None, except_id: int | None = None) -> bool:
+        """제목 있는 메모끼리 같은 제목인지. 띄어쓰기와 대소문자는 무시하고 견준다."""
+        if title is None:
+            return False
+        key = title_key(title)
+        for memo_id, other in conn.execute("SELECT id, title FROM memos WHERE title IS NOT NULL"):
+            if memo_id != except_id and title_key(other) == key:
+                return True
+        return False
+
+    @staticmethod
+    def _insert_items(conn: sqlite3.Connection, memo_id: int, texts: list[str], now: str) -> None:
+        last = conn.execute(
+            "SELECT COALESCE(MAX(position), 0) FROM memo_items WHERE memo_id = ?", (memo_id,)
+        ).fetchone()[0]
+        conn.executemany(
+            "INSERT INTO memo_items (memo_id, text, done, position, created_at) VALUES (?, ?, 0, ?, ?)",
+            [(memo_id, text, last + offset + 1, now) for offset, text in enumerate(texts)],
+        )
+
+    def list_memos(self) -> list[dict[str, Any]]:
+        """메모를 마지막으로 고친 순서(최근이 위)로, 품목과 함께 돌려준다."""
+        with self._connect() as conn:
+            ids = [row[0] for row in conn.execute("SELECT id FROM memos ORDER BY touched DESC, id DESC")]
+            return [self._memo(conn, memo_id) for memo_id in ids]
+
+    def get_memo(self, memo_id: int) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            return self._memo(conn, memo_id)
+
+    def add_memo(self, title: str | None, body: str, items: list[str], now: str) -> dict[str, Any]:
+        """메모를 만든다. 같은 제목이 있으면 MemoError("duplicate"), 모두 비었으면 MemoError("empty")."""
+        if title is None and not body and not items:
+            raise MemoError("empty")
+        with self._connect() as conn, conn:
+            if self._title_taken(conn, title):
+                raise MemoError("duplicate")
+            top = conn.execute("SELECT COALESCE(MAX(touched), 0) + 1 FROM memos").fetchone()[0]
+            cursor = conn.execute(
+                "INSERT INTO memos (title, body, created_at, updated_at, touched) VALUES (?, ?, ?, ?, ?)",
+                (title, body, now, now, top),
+            )
+            memo_id = cursor.lastrowid
+            self._insert_items(conn, memo_id, items, now)
+            return self._memo(conn, memo_id)
+
+    def update_memo(self, memo_id: int, now: str, **changes: Any) -> dict[str, Any] | None:
+        """준 값(title, body)만 바꾼다. title=None은 제목 지우기. 없는 id면 None.
+
+        같은 제목이 있으면 MemoError("duplicate"), 바꾼 결과 제목·글·품목이 모두 비면 MemoError("empty").
+        """
+        with self._connect() as conn, conn:
+            memo = self._memo(conn, memo_id)
+            if memo is None:
+                return None
+            title = changes.get("title", memo["title"])
+            body = changes.get("body", memo["body"])
+            if title is None and not body and not memo["items"]:
+                raise MemoError("empty")
+            if "title" in changes and self._title_taken(conn, title, except_id=memo_id):
+                raise MemoError("duplicate")
+            conn.execute("UPDATE memos SET title = ?, body = ? WHERE id = ?", (title, body, memo_id))
+            self._touch(conn, memo_id, now)
+            return self._memo(conn, memo_id)
+
+    def delete_memo(self, memo_id: int) -> bool:
+        """메모와 품목을 함께 지운다."""
+        with self._connect() as conn, conn:
+            if conn.execute("DELETE FROM memos WHERE id = ?", (memo_id,)).rowcount == 0:
+                return False
+            conn.execute("DELETE FROM memo_items WHERE memo_id = ?", (memo_id,))
+            return True
+
+    def add_memo_items(self, memo_id: int, texts: list[str], now: str) -> dict[str, Any] | None:
+        """품목을 메모 맨 아래에 적은 순서대로 넣는다. 없는 메모면 None."""
+        with self._connect() as conn, conn:
+            if conn.execute("SELECT 1 FROM memos WHERE id = ?", (memo_id,)).fetchone() is None:
+                return None
+            self._insert_items(conn, memo_id, texts, now)
+            self._touch(conn, memo_id, now)
+            return self._memo(conn, memo_id)
+
+    def update_memo_item(
+        self, memo_id: int, item_id: int, now: str, text: str | None = None, done: bool | None = None
+    ) -> dict[str, Any] | None:
+        """품목의 글이나 체크를 바꾼다. 체크해도 자리는 그대로다. 없으면 None."""
+        with self._connect() as conn, conn:
+            found = conn.execute(
+                "SELECT 1 FROM memo_items WHERE id = ? AND memo_id = ?", (item_id, memo_id)
+            ).fetchone()
+            if found is None:
+                return None
+            if text is not None:
+                conn.execute("UPDATE memo_items SET text = ? WHERE id = ?", (text, item_id))
+            if done is not None:
+                conn.execute("UPDATE memo_items SET done = ? WHERE id = ?", (int(done), item_id))
+            self._touch(conn, memo_id, now)
+            return self._memo(conn, memo_id)
+
+    def delete_memo_item(self, memo_id: int, item_id: int, now: str) -> dict[str, Any] | None:
+        with self._connect() as conn, conn:
+            cursor = conn.execute(
+                "DELETE FROM memo_items WHERE id = ? AND memo_id = ?", (item_id, memo_id)
+            )
+            if cursor.rowcount == 0:
+                return None
+            self._touch(conn, memo_id, now)
+            return self._memo(conn, memo_id)
+
+    def clear_memo_done(self, memo_id: int, now: str) -> dict[str, Any] | None:
+        """체크한 품목을 지운다 (사용자가 버튼을 눌렀을 때만). 없는 메모면 None."""
+        with self._connect() as conn, conn:
+            if conn.execute("SELECT 1 FROM memos WHERE id = ?", (memo_id,)).fetchone() is None:
+                return None
+            cursor = conn.execute("DELETE FROM memo_items WHERE memo_id = ? AND done = 1", (memo_id,))
+            if cursor.rowcount > 0:
+                self._touch(conn, memo_id, now)
+            return self._memo(conn, memo_id)
 
     # ---------- 루틴 ----------
 

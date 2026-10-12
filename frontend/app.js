@@ -186,6 +186,8 @@ async function refresh() {
   serverToday = routineData.today;
   // 습관 화면을 보고 있으면 그 기간의 기록도 함께 다시 받는다 (habits.js)
   if (currentView === 'habits') await fetchHabits();
+  // 저장소 화면을 보고 있으면 메모도 다시 받는다 (memos.js)
+  if (currentView === 'memos') await fetchMemos();
   if (editing && !findItem(editing.kind, editing.id)) editing = null;
   loaded = true;
   render();
@@ -844,6 +846,7 @@ function render() {
   renderStatusTabs();
   renderStats(counted.filter(inCategory));
   renderHabits();
+  renderMemos();
 }
 
 function itemSelector(kind, id) {

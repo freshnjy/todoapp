@@ -5,15 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>오늘 할 일</title>
   <link rel="stylesheet" href="style.css">
-  <!-- habits.js가 먼저다: app.js가 시작할 때 habits.js의 함수를 쓴다 -->
+  <!-- habits.js와 memos.js가 먼저다: app.js가 시작할 때 두 파일의 함수를 쓴다 -->
   <script src="habits.js" defer></script>
+  <script src="memos.js" defer></script>
   <script src="app.js" defer></script>
   <!-- voice.js는 app.js 다음이다: app.js의 함수와 상태를 쓴다 -->
   <script src="voice.js" defer></script>
 </head>
 <body>
   <main class="app">
-    <!-- 헤더: 앱 이름과 오늘 날짜, 오른쪽에 화면 전환(오늘 할 일 / 습관) -->
+    <!-- 헤더: 앱 이름과 오늘 날짜, 오른쪽에 화면 전환(오늘 할 일 / 습관 / 저장소) -->
     <header class="header">
       <div class="header-text">
         <h1 class="header-title">오늘 할 일</h1>
@@ -22,6 +23,7 @@
       <nav class="tabs status-tabs view-tabs" id="view-tabs" aria-label="화면 전환">
         <button class="tab is-active" type="button" data-view="today" aria-pressed="true">오늘</button>
         <button class="tab" type="button" data-view="habits" aria-pressed="false">습관</button>
+        <button class="tab" type="button" data-view="memos" aria-pressed="false">저장소</button>
       </nav>
     </header>
 
@@ -153,6 +155,13 @@
       <ul class="habit-list" id="habit-list"></ul>
       <p class="empty" id="habit-empty" hidden></p>
       <p class="habit-legend" id="habit-legend">● 한 날 · 빈칸은 안 한 날 · 흐린 칸은 쉬는 날. 칸을 누르면 표시하거나 지울 수 있어요.</p>
+    </section>
+
+    <!-- 저장소: 생각난 것을 남겨 두는 메모 (memos.js가 채움). 마지막으로 고친 메모가 위에 온다 -->
+    <section id="view-memos" aria-label="저장소" hidden>
+      <button class="btn btn-primary memo-new" id="memo-new" type="button">+ 새 메모</button>
+      <ul class="memo-list" id="memo-list"></ul>
+      <p class="empty" id="memo-empty" hidden></p>
     </section>
 
     <!-- 말로 넣은 뒤의 알림: "장보기에 '우유' 추가함 · 취소" (voice.js가 채움) -->

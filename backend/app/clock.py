@@ -11,3 +11,8 @@ KST = timezone(timedelta(hours=9))
 def today() -> str:
     """오늘 (Asia/Seoul, YYYY-MM-DD)."""
     return datetime.now(KST).date().isoformat()
+
+
+def now() -> str:
+    """지금 (Asia/Seoul, 초까지). 예: 2026-10-12T21:40:05+09:00. 앞 10자가 그날의 날짜다."""
+    return datetime.now(KST).isoformat(timespec="seconds")

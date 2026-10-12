@@ -1,7 +1,7 @@
 # 할 일 앱 작업 규칙
 
 ## 이 프로젝트
-혼자 쓰는 개인용 할 일 관리 웹앱. 오늘 할 일을 적고 지우는 화면에, 반복되는 루틴과 해빗트래커를 더한다.
+혼자 쓰는 개인용 할 일 관리 웹앱. 오늘 할 일을 적고 지우는 화면에, 반복되는 루틴과 해빗트래커, 생각난 것을 남겨 두는 저장소(메모)를 더한다.
 작업 전에 `docs/PRD.md`와 `docs/api.md`를 읽는다. 작업 순서는 `docs/tasks.md`를 따른다. 서버 배포는 `docs/deploy.md`.
 
 ## 기술 선택
@@ -12,8 +12,8 @@
 
 ## 폴더 구조
 ```
-backend/app/        FastAPI 앱 (main.py, auth.py, store.py, clock.py, rules.py, todos.py, groups.py, routines.py, habits.py, voice.py, bridge.py)
-frontend/           index.html, login.html, style.css, app.js, habits.js, voice.js, login.js
+backend/app/        FastAPI 앱 (main.py, auth.py, store.py, clock.py, rules.py, todos.py, groups.py, memos.py, routines.py, habits.py, voice.py, bridge.py)
+frontend/           index.html, login.html, style.css, app.js, habits.js, memos.js, voice.js, login.js
 tests/              pytest
 deploy/             nginx, systemd 예시 (실제 값 없음)
 docs/               PRD.md, tasks.md, api.md, deploy.md
