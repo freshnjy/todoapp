@@ -199,7 +199,7 @@ def test_voice_without_a_memo_title_adds_a_plain_todo(logged_in):
     data = res.json()
     assert (data["result"], data["memo"], data["items"]) == ("todo", None, [])
     assert data["todos"] == [
-        {"id": data["todos"][0]["id"], "text": "치과 예약하기", "category": "personal", "done": False}
+        {"id": data["todos"][0]["id"], "text": "치과 예약하기", "category": "personal", "done": False, "memo_ids": []}
     ]
 
 

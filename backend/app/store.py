@@ -28,13 +28,23 @@ DB_FILENAME = "todo.sqlite3"
 _COLUMNS = "id, text, category, done"
 
 
-def _to_todo(row: tuple) -> dict[str, Any]:
+def _to_todo(row: tuple, memo_ids: list[int] | None = None) -> dict[str, Any]:
     return {
         "id": row[0],
         "text": row[1],
         "category": row[2],
         "done": bool(row[3]),
+        "memo_ids": memo_ids or [],
     }
+
+
+def _memo_ids(conn: sqlite3.Connection, todo_ids: list[int]) -> dict[int, list[int]]:
+    """할 일마다 연결된 메모 id (붙인 순서)."""
+    links: dict[int, list[int]] = {todo_id: [] for todo_id in todo_ids}
+    for todo_id, memo_id in conn.execute("SELECT todo_id, memo_id FROM todo_memos ORDER BY id"):
+        if todo_id in links:
+            links[todo_id].append(memo_id)
+    return links
 
 
 def title_key(title: str) -> str:
@@ -43,7 +53,8 @@ def title_key(title: str) -> str:
 
 
 class MemoError(Exception):
-    """메모를 저장할 수 없는 이유. reason은 "duplicate"(같은 제목) 또는 "empty"(모두 비었음)."""
+    """메모를 저장할 수 없는 이유. reason은 "duplicate"(같은 제목), "empty"(모두 비었음),
+    "missing"(할 일에 붙이려는 메모가 없음)."""
 
     def __init__(self, reason: str) -> None:
         super().__init__(reason)
@@ -135,6 +146,22 @@ class Store:
                 )
                 """
             )
+            # 할 일과 메모의 연결 (10단계). id 순서가 붙인 순서다. 루틴에는 붙이지 않는다.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS todo_memos (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    todo_id INTEGER NOT NULL,
+                    memo_id INTEGER NOT NULL,
+                    UNIQUE (todo_id, memo_id)
+                )
+                """
+            )
+            # 이미 지워진 할 일이나 메모에 걸린 연결은 지운다 (지운 쪽에서 함께 지우지만 혹시 남은 것)
+            conn.execute(
+                "DELETE FROM todo_memos WHERE todo_id NOT IN (SELECT id FROM todos) "
+                "OR memo_id NOT IN (SELECT id FROM memos)"
+            )
 
     @classmethod
     def from_env(cls) -> "Store":
@@ -145,17 +172,28 @@ class Store:
         # 요청마다 짧게 연결하고 닫는다. `with self._connect() as conn, conn:`은 트랜잭션까지 묶는다.
         return closing(sqlite3.connect(self.path))
 
+    @staticmethod
+    def _drop_orphan_links(conn: sqlite3.Connection) -> None:
+        """지워진 할 일에 걸린 연결을 지운다. 메모는 그대로 남는다."""
+        conn.execute("DELETE FROM todo_memos WHERE todo_id NOT IN (SELECT id FROM todos)")
+
+    @staticmethod
+    def _todo(conn: sqlite3.Connection, todo_id: int) -> dict[str, Any] | None:
+        row = conn.execute(f"SELECT {_COLUMNS} FROM todos WHERE id = ?", (todo_id,)).fetchone()
+        return _to_todo(row, _memo_ids(conn, [todo_id])[todo_id]) if row else None
+
     def list_todos(self, today: str) -> list[dict[str, Any]]:
-        """목록을 돌려준다. 완료한 날이 today(YYYY-MM-DD)보다 앞선 항목은 먼저 지운다."""
+        """목록을 돌려준다. 완료한 날이 today(YYYY-MM-DD)보다 앞선 항목은 먼저 지운다 (연결도 함께)."""
         with self._connect() as conn, conn:
-            conn.execute("DELETE FROM todos WHERE done = 1 AND done_on < ?", (today,))
+            if conn.execute("DELETE FROM todos WHERE done = 1 AND done_on < ?", (today,)).rowcount:
+                self._drop_orphan_links(conn)
             rows = conn.execute(f"SELECT {_COLUMNS} FROM todos ORDER BY sort_key, id").fetchall()
-        return [_to_todo(row) for row in rows]
+            links = _memo_ids(conn, [row[0] for row in rows])
+        return [_to_todo(row, links[row[0]]) for row in rows]
 
     def get_todo(self, todo_id: int) -> dict[str, Any] | None:
         with self._connect() as conn:
-            row = conn.execute(f"SELECT {_COLUMNS} FROM todos WHERE id = ?", (todo_id,)).fetchone()
-        return _to_todo(row) if row else None
+            return self._todo(conn, todo_id)
 
     def add_todo(self, text: str, category: str) -> dict[str, Any]:
         created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -166,7 +204,7 @@ class Store:
                 (text, category, top, created_at),
             )
             todo_id = cursor.lastrowid
-        return {"id": todo_id, "text": text, "category": category, "done": False}
+        return {"id": todo_id, "text": text, "category": category, "done": False, "memo_ids": []}
 
     def update_todo(
         self,
@@ -175,8 +213,12 @@ class Store:
         text: str | None = None,
         category: str | None = None,
         done: bool | None = None,
+        now: str | None = None,
     ) -> dict[str, Any] | None:
-        """준 값만 바꾼다. 완료 여부가 실제로 바뀌면 맨 아래로 옮긴다. 없는 id면 None."""
+        """준 값만 바꾼다. 완료 여부가 실제로 바뀌면 맨 아래로 옮긴다. 없는 id면 None.
+
+        완료로 바뀌면 연결된 메모마다 체크한 품목을 지운다 (되돌려도 살리지 않는다). now는 메모의 고친 시각.
+        """
         with self._connect() as conn, conn:
             row = conn.execute("SELECT done FROM todos WHERE id = ?", (todo_id,)).fetchone()
             if row is None:
@@ -191,17 +233,53 @@ class Store:
                     "UPDATE todos SET done = ?, done_on = ?, sort_key = ? WHERE id = ?",
                     (int(done), today if done else None, bottom, todo_id),
                 )
-            updated = conn.execute(f"SELECT {_COLUMNS} FROM todos WHERE id = ?", (todo_id,)).fetchone()
-        return _to_todo(updated)
+                if done:
+                    self._clear_linked_done_items(conn, todo_id, now or today)
+            return self._todo(conn, todo_id)
+
+    def _clear_linked_done_items(self, conn: sqlite3.Connection, todo_id: int, now: str) -> None:
+        """할 일에 연결된 메모마다 체크한 품목을 지운다. 지운 것이 있는 메모만 고친 시각을 바꾼다."""
+        for (memo_id,) in conn.execute(
+            "SELECT memo_id FROM todo_memos WHERE todo_id = ? ORDER BY id", (todo_id,)
+        ).fetchall():
+            cursor = conn.execute("DELETE FROM memo_items WHERE memo_id = ? AND done = 1", (memo_id,))
+            if cursor.rowcount > 0:
+                self._touch(conn, memo_id, now)
+
+    def set_todo_memos(self, todo_id: int, memo_ids: list[int]) -> dict[str, Any] | None:
+        """할 일의 연결을 memo_ids로 통째로 바꾼다 (순서대로, 겹치면 한 번만).
+
+        없는 할 일이면 None, 없는 메모가 있으면 MemoError("missing")를 내고 아무것도 바꾸지 않는다.
+        """
+        ordered = list(dict.fromkeys(memo_ids))
+        with self._connect() as conn, conn:
+            if conn.execute("SELECT 1 FROM todos WHERE id = ?", (todo_id,)).fetchone() is None:
+                return None
+            for memo_id in ordered:
+                if conn.execute("SELECT 1 FROM memos WHERE id = ?", (memo_id,)).fetchone() is None:
+                    raise MemoError("missing")
+            # 이미 붙어 있던 것은 자리(붙인 순서)를 지킨다
+            kept = [row[0] for row in conn.execute(
+                "SELECT memo_id FROM todo_memos WHERE todo_id = ? ORDER BY id", (todo_id,)
+            )]
+            for memo_id in kept:
+                if memo_id not in ordered:
+                    conn.execute("DELETE FROM todo_memos WHERE todo_id = ? AND memo_id = ?", (todo_id, memo_id))
+            for memo_id in ordered:
+                if memo_id not in kept:
+                    conn.execute("INSERT INTO todo_memos (todo_id, memo_id) VALUES (?, ?)", (todo_id, memo_id))
+            return self._todo(conn, todo_id)
 
     def delete_todo(self, todo_id: int) -> bool:
         with self._connect() as conn, conn:
             cursor = conn.execute("DELETE FROM todos WHERE id = ?", (todo_id,))
+            conn.execute("DELETE FROM todo_memos WHERE todo_id = ?", (todo_id,))
             return cursor.rowcount > 0
 
     def clear_done(self) -> int:
         with self._connect() as conn, conn:
             cursor = conn.execute("DELETE FROM todos WHERE done = 1")
+            self._drop_orphan_links(conn)
             return cursor.rowcount
 
     # ---------- 저장소 (메모) ----------
@@ -312,6 +390,7 @@ class Store:
             if conn.execute("DELETE FROM memos WHERE id = ?", (memo_id,)).rowcount == 0:
                 return False
             conn.execute("DELETE FROM memo_items WHERE memo_id = ?", (memo_id,))
+            conn.execute("DELETE FROM todo_memos WHERE memo_id = ?", (memo_id,))
             return True
 
     def add_memo_items(self, memo_id: int, texts: list[str], now: str) -> dict[str, Any] | None:

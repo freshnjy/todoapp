@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, field_validator
 
 from . import clock
-from .store import Store
+from .store import MemoError, Store
 
 MAX_LENGTH = 100
 Category = Literal["work", "personal", "growth"]
@@ -43,6 +43,11 @@ class TodoUpdate(BaseModel):
         return None if value is None else clean_text(value)
 
 
+class TodoMemos(BaseModel):
+    # 이 할 일에 붙일 메모 id 전부 (빈 목록이면 모두 뗀다)
+    memo_ids: list[int]
+
+
 router = APIRouter()
 
 
@@ -74,8 +79,20 @@ def clear_done(request: Request) -> dict:
 @router.patch("/api/todos/{todo_id}")
 def update_todo(todo_id: int, body: TodoUpdate, request: Request) -> dict:
     todo = _store(request).update_todo(
-        todo_id, clock.today(), text=body.text, category=body.category, done=body.done
+        todo_id, clock.today(), text=body.text, category=body.category, done=body.done, now=clock.now()
     )
+    if todo is None:
+        raise _not_found()
+    return todo
+
+
+@router.put("/api/todos/{todo_id}/memos")
+def set_todo_memos(todo_id: int, body: TodoMemos, request: Request) -> dict:
+    """할 일에 붙인 메모를 통째로 바꾼다 (10단계). 메모는 그대로 두고 연결만 바꾼다."""
+    try:
+        todo = _store(request).set_todo_memos(todo_id, body.memo_ids)
+    except MemoError as error:
+        raise HTTPException(status_code=404, detail="메모를 찾을 수 없습니다.") from error
     if todo is None:
         raise _not_found()
     return todo

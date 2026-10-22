@@ -374,7 +374,7 @@ def test_old_groups_and_their_items_are_removed_on_start(tmp_path):
     with TestClient(app) as c:
         login(c)
         assert c.get("/api/todos").json()["todos"] == [
-            {"id": 1, "text": "은행 가기", "category": "personal", "done": False}
+            {"id": 1, "text": "은행 가기", "category": "personal", "done": False, "memo_ids": []}
         ]
         assert c.get("/api/groups").status_code in (404, 405)
         add_memo(c, title="장보기", items="두부")

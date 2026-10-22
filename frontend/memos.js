@@ -321,6 +321,15 @@ function createMemoCard(memo) {
   add.append(addInput, addBtn);
   inside.append(add);
 
+  // 이 메모를 붙인 할 일 (10단계). 할 일 목록은 app.js의 todos
+  const linkedTodos = todos.filter((todo) => todo.memoIds.includes(memo.id));
+  if (linkedTodos.length > 0) {
+    const linkedEl = document.createElement('p');
+    linkedEl.className = 'memo-linked';
+    linkedEl.textContent = `🔗 ${linkedTodos.map((todo) => todo.text).join(', ')}`;
+    inside.append(linkedEl);
+  }
+
   const foot = document.createElement('div');
   foot.className = 'memo-foot';
   const meta = document.createElement('span');

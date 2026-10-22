@@ -65,8 +65,10 @@ const logoutBtn = document.getElementById('logout');
 const CONNECT_ERROR = '서버와 연결하지 못했어요. 잠시 후 다시 시도해 주세요.';
 
 // 상태: 서버에서 받은 할 일, 루틴. 저장은 서버가 한다 (docs/api.md). 메모는 memos.js의 memos
-// 할 일: { id, text, category, done }
+// 할 일: { id, text, category, done, memoIds(붙인 메모의 id, 10단계) }
 let todos = [];
+// 오늘 화면에서 펼쳐 둔 연결 메모 ("할일id:메모id", 저장하지 않음)
+const openLinks = new Set();
 // 추가 폼에서 고른 메모의 id (없으면 할 일이나 루틴으로 들어간다). 등록한 뒤에도 그대로 둔다
 let selectedMemo = null;
 // 루틴: { id, text, category, rule, due(오늘 하는 날인지), done(오늘 했는지) }
@@ -80,7 +82,7 @@ let busy = false;
 // 화면 상태: 선택한 탭, 상태 필터 (저장하지 않음)
 let currentFilter = 'all';
 let statusFilter = 'all';
-// 수정 중인 항목 { kind: 'todo' | 'routine', id, text, category, rule(루틴만) }
+// 수정 중인 항목 { kind: 'todo' | 'routine', id, text, category, rule(루틴만), memoIds(할 일만) }
 let editing = null;
 // 사용자가 카테고리를 직접 고르면 이번 할 일은 자동 분류를 멈춘다
 let categoryLocked = false;
@@ -145,7 +147,14 @@ async function refresh() {
     text: todo.text,
     category: todo.category,
     done: todo.done,
+    memoIds: todo.memo_ids || [],
   }));
+  // 다른 기기에서 떼거나 지운 연결은 펼침에서도 뺀다
+  [...openLinks].forEach((key) => {
+    const [todoId, memoId] = key.split(':');
+    const todo = findItem('todo', todoId);
+    if (!todo || !todo.memoIds.includes(Number(memoId)) || !findMemo(Number(memoId))) openLinks.delete(key);
+  });
   // 다른 기기에서 지우거나 제목을 뺀 메모는 고른 것에서도 뺀다
   const picked = selectedMemo === null ? null : findMemo(selectedMemo);
   if (!picked || !picked.title) selectedMemo = null;
@@ -397,6 +406,7 @@ function startEdit(kind, id) {
   if (!item) return;
   editing = { kind, id, text: item.text, category: item.category };
   if (kind === 'routine') editing.rule = createRuleState(item.rule);
+  else editing.memoIds = [...item.memoIds];
   render();
 }
 
@@ -422,7 +432,15 @@ async function saveEdit() {
     body.rule = parsed.rule;
     path = `api/routines/${id}`;
   }
-  const saved = await change(() => api('PATCH', path, body));
+  const item = findItem(kind, id);
+  const memoIds = editing.memoIds;
+  const linksChanged = kind === 'todo' && item && memoIds
+    && (memoIds.length !== item.memoIds.length || memoIds.some((memoId) => !item.memoIds.includes(memoId)));
+  const saved = await change(async () => {
+    await api('PATCH', path, body);
+    // 메모 연결은 바뀌었을 때만 따로 저장한다 (10단계)
+    if (linksChanged) await api('PUT', `api/todos/${id}/memos`, { memo_ids: memoIds });
+  });
   if (!saved) return false;
   if (editing && editing.kind === kind && editing.id === id) editing = null;
   render();
@@ -451,6 +469,117 @@ function createButton(label, action, ariaLabel, extraClass = '') {
 // 한 줄: 체크박스 + 카테고리 배지 + 내용 + 버튼.
 // 루틴은 내용 아래에 반복 규칙을 적고, 삭제 대신 종료 버튼을 둔다.
 // checkable이 false면(오늘 해당 없는 루틴) 체크박스를 두지 않는다.
+// 할 일에 붙인 메모 중 아직 있는 것 (붙인 순서)
+function linkedMemos(todo) {
+  return todo.memoIds.map((memoId) => findMemo(memoId)).filter(Boolean);
+}
+
+function linkKey(todoId, memoId) {
+  return `${todoId}:${memoId}`;
+}
+
+function createLinkChip(todo, memo) {
+  const left = memo.items.filter((memoItem) => !memoItem.done).length;
+  const isOpen = openLinks.has(linkKey(todo.id, memo.id));
+  const chip = document.createElement('button');
+  chip.type = 'button';
+  chip.className = 'link-chip';
+  chip.classList.toggle('is-open', isOpen);
+  chip.dataset.action = 'link-open';
+  chip.dataset.memo = String(memo.id);
+  chip.textContent = memo.items.length > 0 ? `📝 ${memoName(memo)} (${left})` : `📝 ${memoName(memo)}`;
+  chip.setAttribute('aria-expanded', String(isOpen));
+  chip.setAttribute('aria-label', `${memoName(memo)} 메모, 남은 품목 ${left}개, ${isOpen ? '접기' : '펼치기'}`);
+  return chip;
+}
+
+// 펼친 연결 메모: 할 일 바로 아래에 품목을 보여 주고 여기서 체크한다 (저장소의 메모에도 체크된다)
+function createLinkPanel(todo, memo) {
+  const li = document.createElement('li');
+  li.className = 'link-panel';
+  li.dataset.todo = todo.id;
+  li.dataset.memo = String(memo.id);
+  if (memo.items.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'link-empty';
+    empty.textContent = '품목이 없어요. 저장소에서 넣을 수 있어요';
+    li.append(empty);
+    return li;
+  }
+  const list = document.createElement('ul');
+  list.className = 'link-items';
+  memo.items.forEach((memoItem) => {
+    const row = document.createElement('li');
+    row.className = 'link-item';
+    row.classList.toggle('is-done', memoItem.done);
+    const label = document.createElement('label');
+    label.className = 'link-check';
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.checked = memoItem.done;
+    box.dataset.action = 'link-check';
+    box.dataset.memo = String(memo.id);
+    box.dataset.item = String(memoItem.id);
+    box.setAttribute('aria-label', `${memoItem.text} 체크`);
+    const text = document.createElement('span');
+    text.className = 'todo-text';
+    text.textContent = memoItem.text;
+    label.append(box, text);
+    row.append(label);
+    list.append(row);
+  });
+  li.append(list);
+  return li;
+}
+
+// 할 일 한 줄과, 펼쳐 둔 연결 메모의 품목
+function createTodoRows(todo) {
+  const rows = [createRow('todo', todo)];
+  if (isEditing('todo', todo)) return rows;
+  linkedMemos(todo).forEach((memo) => {
+    if (openLinks.has(linkKey(todo.id, memo.id))) rows.push(createLinkPanel(todo, memo));
+  });
+  return rows;
+}
+
+// 수정 화면의 메모 고르기: 저장소의 메모마다 버튼 하나. 눌러서 붙이고 다시 눌러 뗀다 ("저장"을 눌러야 바뀐다)
+function createMemoPicker() {
+  const box = document.createElement('div');
+  box.className = 'edit-memos';
+  const label = document.createElement('p');
+  label.className = 'edit-memos-label';
+  label.textContent = memos.length > 0 ? '메모 연결' : '메모 연결: 저장소에 메모가 없어요';
+  box.append(label);
+  if (memos.length === 0) return box;
+  const chips = document.createElement('div');
+  chips.className = 'memo-bar';
+  chips.setAttribute('role', 'group');
+  chips.setAttribute('aria-label', '붙일 메모');
+  memos.forEach((memo) => {
+    const isOn = editing.memoIds.includes(memo.id);
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'day-chip memo-chip';
+    chip.classList.toggle('is-on', isOn);
+    chip.dataset.action = 'edit-memo';
+    chip.dataset.memo = String(memo.id);
+    chip.textContent = memoChipLabel(memo);
+    chip.setAttribute('aria-pressed', String(isOn));
+    chip.setAttribute('aria-label', `${memoName(memo)} 메모 ${isOn ? '떼기' : '붙이기'}`);
+    chips.append(chip);
+  });
+  box.append(chips);
+  return box;
+}
+
+// 제목 없는 메모는 무엇인지 알아보게 글 첫 줄이나 첫 품목을 붙인다
+function memoChipLabel(memo) {
+  if (memo.title) return memo.title;
+  const firstLine = memo.body.split('\n').find((part) => part.trim()) || '';
+  const hint = (firstLine || (memo.items[0] ? memo.items[0].text : '')).trim();
+  return hint ? `${MEMO_UNTITLED} · ${hint.slice(0, 12)}` : MEMO_UNTITLED;
+}
+
 function createItem(kind, item, checkable = true) {
   const li = document.createElement('li');
   li.className = `todo-item cat-${normalizeCategory(item.category)}`;
@@ -501,6 +630,16 @@ function createItem(kind, item, checkable = true) {
   );
 
   li.append(check, badge, main, actions);
+  // 할 일에 붙인 메모: "📝 장보기 (3)". 좁은 화면에서 잘리지 않게 줄 아래에 한 줄을 따로 쓴다.
+  // 누르면 이 할 일 아래에 품목이 펼쳐진다 (10단계)
+  const linked = kind === 'todo' ? linkedMemos(item) : [];
+  if (linked.length > 0) {
+    li.classList.add('has-links');
+    const links = document.createElement('div');
+    links.className = 'todo-links';
+    links.append(...linked.map((memo) => createLinkChip(item, memo)));
+    li.append(links);
+  }
   return li;
 }
 
@@ -593,6 +732,8 @@ function createEditItem(kind, item) {
     hint.className = 'rule-hint';
     hint.textContent = '반복을 바꾸면 오늘부터 적용돼요. 지난 기록은 그대로 남아요.';
     editForm.append(createRuleControls(editing.rule, false), hint);
+  } else {
+    editForm.append(createMemoPicker());
   }
   editForm.append(row);
   li.append(editForm);
@@ -692,7 +833,7 @@ function render() {
   // 할 일
   const visibleTodos = todos.filter(inCategory);
   const ordered = byStatus(visibleTodos);
-  listEl.replaceChildren(...ordered.map((todo) => createRow('todo', todo)));
+  listEl.replaceChildren(...ordered.flatMap((todo) => createTodoRows(todo)));
   // 빈 안내: 할 일 자체가 없을 때와 상태 필터로 걸러져 없을 때를 구분
   emptyEl.hidden = ordered.length > 0;
   if (!loaded) emptyEl.textContent = '불러오는 중이에요';
@@ -898,6 +1039,15 @@ clearDoneBtn.addEventListener('click', async () => {
 
 // 아래는 루틴 목록과 할 일 목록이 함께 쓴다 (항목의 data-kind로 구분)
 listsEl.addEventListener('change', async (event) => {
+  // 펼친 연결 메모의 품목 체크: 저장소의 그 메모 품목을 바꾼다
+  if (event.target.dataset.action === 'link-check') {
+    const { memo, item } = event.target.dataset;
+    const done = event.target.checked;
+    await change(() => api('PATCH', `api/memos/${memo}/items/${item}`, { done }));
+    const again = listsEl.querySelector(`[data-action="link-check"][data-item="${item}"]`);
+    if (again) again.focus();
+    return;
+  }
   if (event.target.dataset.action !== 'toggle') return;
   const { kind, id } = event.target.closest('.todo-item').dataset;
   await toggleItem(kind, id);
@@ -929,10 +1079,34 @@ listsEl.addEventListener('keydown', (event) => {
 listsEl.addEventListener('click', async (event) => {
   const button = event.target.closest('[data-action]');
   if (!button || button.tagName !== 'BUTTON') return;
-  const { kind, id } = button.closest('.todo-item').dataset;
+  const row = button.closest('.todo-item');
+  if (!row) return;
+  const { kind, id } = row.dataset;
   const action = button.dataset.action;
   const item = findItem(kind, id);
   if (!item) return;
+
+  // 연결 메모 펼치기·접기
+  if (action === 'link-open') {
+    const key = linkKey(id, button.dataset.memo);
+    if (openLinks.has(key)) openLinks.delete(key);
+    else openLinks.add(key);
+    render();
+    const again = listsEl.querySelector(`${itemSelector(kind, id)} [data-action="link-open"][data-memo="${button.dataset.memo}"]`);
+    if (again) again.focus();
+    return;
+  }
+  // 수정 화면에서 메모 붙이기·떼기 (저장할 때 함께 바뀐다)
+  if (action === 'edit-memo' && editing) {
+    const memoId = Number(button.dataset.memo);
+    editing.memoIds = editing.memoIds.includes(memoId)
+      ? editing.memoIds.filter((other) => other !== memoId)
+      : [...editing.memoIds, memoId];
+    render();
+    const again = listsEl.querySelector(`[data-action="edit-memo"][data-memo="${memoId}"]`);
+    if (again) again.focus();
+    return;
+  }
 
   if (action === 'edit') beginEdit(kind, id);
   if (action === 'cancel') endEdit(kind, id, false);

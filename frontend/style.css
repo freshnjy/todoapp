@@ -651,6 +651,121 @@ textarea {
   font-weight: 600;
 }
 
+/* 할 일에 붙인 메모 (10단계): 할 일 이름 아래의 "📝 장보기 (3)" 버튼과, 펼친 품목 */
+.todo-item.has-links {
+  flex-wrap: wrap;
+}
+
+.todo-links {
+  display: flex;
+  flex-wrap: wrap;
+  flex-basis: 100%;
+  gap: 6px;
+  /* 체크박스 칸(44px)과 간격만큼 들여 할 일 글과 줄을 맞춘다 */
+  padding: 0 0 6px 52px;
+}
+
+.link-chip {
+  max-width: 100%;
+  min-height: 36px;
+  padding: 0 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  background: #fff8db;
+  border: 1.5px solid #ecd98a;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.link-chip.is-open {
+  background: #fdeeb0;
+  border-color: #d9be4f;
+}
+
+.link-chip:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.link-panel {
+  margin: -4px 0 8px 20px;
+  padding: 2px 10px;
+  list-style: none;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  box-shadow: inset 4px 0 0 #ecd98a, var(--shadow);
+}
+
+.link-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.link-item + .link-item {
+  border-top: 1px solid var(--border);
+}
+
+.link-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--touch);
+  padding-left: 6px;
+  cursor: pointer;
+}
+
+.link-check input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: #b8962a;
+  cursor: pointer;
+}
+
+.link-item.is-done .todo-text {
+  text-decoration: line-through;
+  color: var(--text-sub);
+}
+
+.link-empty {
+  margin: 0;
+  padding: 10px 6px;
+  color: var(--text-sub);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* 할 일 수정 화면의 메모 고르기 */
+.edit-memos {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.edit-memos-label {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-sub);
+}
+
+/* 저장소의 메모: 붙어 있는 할 일 */
+.memo-linked {
+  margin: 8px 0 0;
+  font-size: 14px;
+  font-weight: 700;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
 /* 오늘 해당 없는 루틴: 접어 두는 목록, 체크박스 자리는 비운다 */
 .rest {
   margin-top: 4px;
