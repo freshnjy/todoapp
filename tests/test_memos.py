@@ -348,3 +348,41 @@ def test_old_database_gets_memo_tables(tmp_path):
         assert [todo["text"] for todo in c.get("/api/todos").json()["todos"]] == ["은행 가기"]
         add_memo(c, title="장보기")
         assert titles(c) == ["장보기"]
+
+
+def test_old_groups_and_their_items_are_removed_on_start(tmp_path):
+    """9단계: 묶음 데이터는 옮기지 않고 지운다. 일반 할 일과 메모는 그대로 둔다."""
+    path = tmp_path / "data" / DB_FILENAME
+    path.parent.mkdir(parents=True)
+    with sqlite3.connect(path) as conn:
+        conn.execute(
+            "CREATE TABLE todos (id INTEGER PRIMARY KEY AUTOINCREMENT, text TEXT NOT NULL, "
+            "category TEXT NOT NULL, done INTEGER NOT NULL DEFAULT 0, done_on TEXT, "
+            "sort_key INTEGER NOT NULL, created_at TEXT NOT NULL, group_id INTEGER)"
+        )
+        conn.execute(
+            "CREATE TABLE groups (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, "
+            "category TEXT NOT NULL, created_at TEXT NOT NULL)"
+        )
+        conn.execute("INSERT INTO groups (name, category, created_at) VALUES ('코스트코', 'personal', 'x')")
+        conn.execute(
+            "INSERT INTO todos (text, category, sort_key, created_at) VALUES ('은행 가기', 'personal', 0, 'x')"
+        )
+        conn.execute(
+            "INSERT INTO todos (text, category, sort_key, created_at, group_id) VALUES ('우유', 'personal', 1, 'x', 1)"
+        )
+    with TestClient(app) as c:
+        login(c)
+        assert c.get("/api/todos").json()["todos"] == [
+            {"id": 1, "text": "은행 가기", "category": "personal", "done": False}
+        ]
+        assert c.get("/api/groups").status_code in (404, 405)
+        add_memo(c, title="장보기", items="두부")
+    with sqlite3.connect(path) as conn:
+        tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+        assert "groups" not in tables
+    # 다시 시작해도 문제없고 남은 것은 그대로다
+    with TestClient(app) as c:
+        login(c)
+        assert [todo["text"] for todo in c.get("/api/todos").json()["todos"]] == ["은행 가기"]
+        assert titles(c) == ["장보기"]

@@ -7,16 +7,38 @@ from __future__ import annotations
 
 from typing import Optional
 
+import re
+
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, field_validator
 
 from . import clock
-from .groups import split_items
 from .store import MemoError, Store
 from .todos import MAX_LENGTH
 
 TITLE_MAX_LENGTH = 20
 BODY_MAX_LENGTH = 2000
+# 한 번에 넣는 품목 글 전체의 길이와 품목 수 (조각 하나는 MAX_LENGTH)
+ITEMS_TEXT_MAX_LENGTH = 1000
+ITEMS_MAX_COUNT = 30
+
+# 쉼표(,)와 전각 쉼표(，、)로 나눈다.
+_SEPARATORS = re.compile(r"[,，、]")
+
+
+def split_items(value: str) -> list[str]:
+    """쉼표로 나눠 품목 목록을 만든다. 앞뒤 공백을 떼고 빈 조각은 버린다."""
+    if len(value) > ITEMS_TEXT_MAX_LENGTH:
+        raise ValueError(f"한 번에 {ITEMS_TEXT_MAX_LENGTH}자까지 넣을 수 있습니다.")
+    items = [piece.strip() for piece in _SEPARATORS.split(value)]
+    items = [piece for piece in items if piece]
+    if not items:
+        raise ValueError("품목을 입력해 주세요.")
+    if len(items) > ITEMS_MAX_COUNT:
+        raise ValueError(f"한 번에 {ITEMS_MAX_COUNT}개까지 넣을 수 있습니다.")
+    if any(len(piece) > MAX_LENGTH for piece in items):
+        raise ValueError(f"품목 하나는 {MAX_LENGTH}자까지 쓸 수 있습니다.")
+    return items
 
 _MEMO_ERRORS = {
     "duplicate": (409, "같은 제목의 메모가 있습니다."),

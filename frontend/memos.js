@@ -251,7 +251,7 @@ function createMemoCard(memo) {
   const line = document.createElement('span');
   line.className = 'memo-line';
   const arrow = document.createElement('span');
-  arrow.className = 'group-arrow';
+  arrow.className = 'memo-arrow';
   arrow.textContent = isOpen ? '▾' : '▸';
   const title = document.createElement('span');
   title.className = 'memo-title';

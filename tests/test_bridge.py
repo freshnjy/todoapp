@@ -114,12 +114,11 @@ def test_routines_skip_off_days_and_ended(bridge):
     assert summary()["routines"] == {"due": 1, "done": 0, "remaining": ["매일"]}
 
 
-def test_todos_skip_done_and_group_items(bridge):
+def test_todos_skip_done_and_memo_items(bridge):
     add_todo(bridge, "보고서 초안")
     finished = add_todo(bridge, "끝낸 일")
     assert bridge.patch(f"/api/todos/{finished['id']}", json={"done": True}).status_code == 200
-    group = bridge.post("/api/groups", json={"name": "장보기", "category": "personal"}).json()
-    assert bridge.post(f"/api/groups/{group['id']}/items", json={"text": "우유, 계란"}).status_code == 201
+    assert bridge.post("/api/memos", json={"title": "장보기", "items": "우유, 계란"}).status_code == 201
     assert summary()["todos"] == {"remaining_count": 1, "remaining": ["보고서 초안"]}
 
 

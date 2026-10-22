@@ -31,7 +31,6 @@ def test_add(logged_in):
         "text": "보고서 쓰기",
         "category": "work",
         "done": False,
-        "group_id": None,
     }
     assert logged_in.get("/api/todos").json()["todos"] == [todo]
 
@@ -115,7 +114,6 @@ def test_edit_text_and_category(logged_in):
         "text": "영어 공부",
         "category": "growth",
         "done": False,
-        "group_id": None,
     }
 
 

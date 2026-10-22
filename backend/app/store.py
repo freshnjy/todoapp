@@ -1,10 +1,10 @@
-"""SQLite 저장소. 할 일, 묶음, 루틴, 저장소의 메모를 둔다.
+"""SQLite 저장소. 할 일, 루틴, 저장소의 메모를 둔다.
 
 순서 규칙은 화면이 localStorage를 쓰던 때와 같다: 새 항목은 맨 위, 완료를 바꾼 항목은 맨 아래.
 `sort_key`가 작을수록 위에 온다. (미완료와 완료를 나눠 보여 주는 것은 화면이 한다.)
 
-묶음(groups)은 장보기처럼 품목이 여러 개인 것을 담는 틀이다. 품목은 `group_id`가 있는 할 일이고,
-카테고리는 묶음의 것을 따른다. 품목은 다른 할 일처럼 완료한 다음 날 지워지지만 묶음은 비어도 남는다.
+묶음(groups)은 9단계에서 없앴다. 저장소의 메모가 대신한다. 앱이 시작할 때 남은 묶음과 품목
+(`group_id`가 있는 할 일)을 지운다. `todos.group_id` 열은 예전 파일과 맞추려고 남겨 두고 쓰지 않는다.
 
 루틴은 "정의"(routines), "규칙의 이력"(routine_rules), "날짜별 수행 기록"(routine_logs)으로 나눈다.
 매일 할 일을 미리 만들어 두지 않고, 날짜를 물을 때 규칙으로 계산한다.
@@ -25,7 +25,7 @@ from . import rules
 
 DB_FILENAME = "todo.sqlite3"
 
-_COLUMNS = "id, text, category, done, group_id"
+_COLUMNS = "id, text, category, done"
 
 
 def _to_todo(row: tuple) -> dict[str, Any]:
@@ -34,12 +34,7 @@ def _to_todo(row: tuple) -> dict[str, Any]:
         "text": row[1],
         "category": row[2],
         "done": bool(row[3]),
-        "group_id": row[4],
     }
-
-
-def _to_group(row: tuple) -> dict[str, Any]:
-    return {"id": row[0], "name": row[1], "category": row[2]}
 
 
 def title_key(title: str) -> str:
@@ -73,20 +68,13 @@ class Store:
                 )
                 """
             )
-            # 예전 파일에는 group_id가 없다. 있던 할 일은 그대로 일반 할 일(NULL)로 둔다.
+            # 묶음 정리(9단계): 묶음의 품목은 group_id가 있는 할 일이었다. 묶음과 함께 지운다.
+            # 데이터는 옮기지 않는다 (사용자가 묶음을 다 지우고 저장소만 쓴다, 2026-10-22).
+            # 다시 시작해도 지울 것이 없으면 아무 일도 하지 않는다.
             columns = {row[1] for row in conn.execute("PRAGMA table_info(todos)")}
-            if "group_id" not in columns:
-                conn.execute("ALTER TABLE todos ADD COLUMN group_id INTEGER")
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS groups (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL,
-                    category TEXT NOT NULL,
-                    created_at TEXT NOT NULL
-                )
-                """
-            )
+            if "group_id" in columns:
+                conn.execute("DELETE FROM todos WHERE group_id IS NOT NULL")
+            conn.execute("DROP TABLE IF EXISTS groups")
             # ended_on: 종료한 날. 그날부터 목록에 나오지 않는다 (지난 기록은 남긴다).
             conn.execute(
                 """
@@ -178,7 +166,7 @@ class Store:
                 (text, category, top, created_at),
             )
             todo_id = cursor.lastrowid
-        return {"id": todo_id, "text": text, "category": category, "done": False, "group_id": None}
+        return {"id": todo_id, "text": text, "category": category, "done": False}
 
     def update_todo(
         self,
@@ -188,19 +176,14 @@ class Store:
         category: str | None = None,
         done: bool | None = None,
     ) -> dict[str, Any] | None:
-        """준 값만 바꾼다. 완료 여부가 실제로 바뀌면 맨 아래로 옮긴다. 없는 id면 None.
-
-        묶음의 품목은 카테고리를 따로 바꾸지 않는다 (묶음의 것을 따른다).
-        """
+        """준 값만 바꾼다. 완료 여부가 실제로 바뀌면 맨 아래로 옮긴다. 없는 id면 None."""
         with self._connect() as conn, conn:
-            row = conn.execute(
-                "SELECT done, group_id FROM todos WHERE id = ?", (todo_id,)
-            ).fetchone()
+            row = conn.execute("SELECT done FROM todos WHERE id = ?", (todo_id,)).fetchone()
             if row is None:
                 return None
             if text is not None:
                 conn.execute("UPDATE todos SET text = ? WHERE id = ?", (text, todo_id))
-            if category is not None and row[1] is None:
+            if category is not None:
                 conn.execute("UPDATE todos SET category = ? WHERE id = ?", (category, todo_id))
             if done is not None and done != bool(row[0]):
                 bottom = conn.execute("SELECT COALESCE(MAX(sort_key), 0) + 1 FROM todos").fetchone()[0]
@@ -220,77 +203,6 @@ class Store:
         with self._connect() as conn, conn:
             cursor = conn.execute("DELETE FROM todos WHERE done = 1")
             return cursor.rowcount
-
-    # ---------- 묶음 ----------
-
-    def list_groups(self) -> list[dict[str, Any]]:
-        """묶음을 만든 순서로 돌려준다."""
-        with self._connect() as conn:
-            rows = conn.execute("SELECT id, name, category FROM groups ORDER BY id").fetchall()
-        return [_to_group(row) for row in rows]
-
-    def add_group(self, name: str, category: str) -> dict[str, Any]:
-        created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        with self._connect() as conn, conn:
-            cursor = conn.execute(
-                "INSERT INTO groups (name, category, created_at) VALUES (?, ?, ?)",
-                (name, category, created_at),
-            )
-            return {"id": cursor.lastrowid, "name": name, "category": category}
-
-    def update_group(
-        self, group_id: int, name: str | None = None, category: str | None = None
-    ) -> dict[str, Any] | None:
-        """준 값만 바꾼다. 카테고리를 바꾸면 품목의 카테고리도 함께 바꾼다. 없는 id면 None."""
-        with self._connect() as conn, conn:
-            if conn.execute("SELECT 1 FROM groups WHERE id = ?", (group_id,)).fetchone() is None:
-                return None
-            if name is not None:
-                conn.execute("UPDATE groups SET name = ? WHERE id = ?", (name, group_id))
-            if category is not None:
-                conn.execute("UPDATE groups SET category = ? WHERE id = ?", (category, group_id))
-                conn.execute("UPDATE todos SET category = ? WHERE group_id = ?", (category, group_id))
-            row = conn.execute(
-                "SELECT id, name, category FROM groups WHERE id = ?", (group_id,)
-            ).fetchone()
-        return _to_group(row)
-
-    def delete_group(self, group_id: int) -> bool:
-        """묶음과 남아 있는 품목을 함께 지운다."""
-        with self._connect() as conn, conn:
-            cursor = conn.execute("DELETE FROM groups WHERE id = ?", (group_id,))
-            if cursor.rowcount == 0:
-                return False
-            conn.execute("DELETE FROM todos WHERE group_id = ?", (group_id,))
-            return True
-
-    def add_items(self, group_id: int, texts: list[str]) -> list[dict[str, Any]] | None:
-        """묶음에 품목을 넣는다. 적은 순서대로 목록 맨 위에 온다. 없는 묶음이면 None."""
-        created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        with self._connect() as conn, conn:
-            row = conn.execute("SELECT category FROM groups WHERE id = ?", (group_id,)).fetchone()
-            if row is None:
-                return None
-            category = row[0]
-            top = conn.execute("SELECT COALESCE(MIN(sort_key), 0) FROM todos").fetchone()[0]
-            first = top - len(texts)
-            items = []
-            for offset, text in enumerate(texts):
-                cursor = conn.execute(
-                    "INSERT INTO todos (text, category, done, sort_key, created_at, group_id) "
-                    "VALUES (?, ?, 0, ?, ?, ?)",
-                    (text, category, first + offset, created_at, group_id),
-                )
-                items.append(
-                    {
-                        "id": cursor.lastrowid,
-                        "text": text,
-                        "category": category,
-                        "done": False,
-                        "group_id": group_id,
-                    }
-                )
-        return items
 
     # ---------- 저장소 (메모) ----------
 
@@ -335,14 +247,19 @@ class Store:
         return False
 
     @staticmethod
-    def _insert_items(conn: sqlite3.Connection, memo_id: int, texts: list[str], now: str) -> None:
+    def _insert_items(conn: sqlite3.Connection, memo_id: int, texts: list[str], now: str) -> list[int]:
+        """품목을 메모 맨 아래에 적은 순서대로 넣고, 새 품목의 id를 돌려준다."""
         last = conn.execute(
             "SELECT COALESCE(MAX(position), 0) FROM memo_items WHERE memo_id = ?", (memo_id,)
         ).fetchone()[0]
-        conn.executemany(
-            "INSERT INTO memo_items (memo_id, text, done, position, created_at) VALUES (?, ?, 0, ?, ?)",
-            [(memo_id, text, last + offset + 1, now) for offset, text in enumerate(texts)],
-        )
+        ids = []
+        for offset, text in enumerate(texts):
+            cursor = conn.execute(
+                "INSERT INTO memo_items (memo_id, text, done, position, created_at) VALUES (?, ?, 0, ?, ?)",
+                (memo_id, text, last + offset + 1, now),
+            )
+            ids.append(cursor.lastrowid)
+        return ids
 
     def list_memos(self) -> list[dict[str, Any]]:
         """메모를 마지막으로 고친 순서(최근이 위)로, 품목과 함께 돌려준다."""
@@ -405,6 +322,33 @@ class Store:
             self._insert_items(conn, memo_id, texts, now)
             self._touch(conn, memo_id, now)
             return self._memo(conn, memo_id)
+
+    def add_items_by_voice(self, memo_id: int | None, texts: list[str], now: str) -> dict[str, Any] | None:
+        """음성으로 품목을 넣는다. memo_id가 None이면 "제목 없음" 메모에 넣는다.
+
+        제목 없는 메모가 여러 개면 가장 최근에 고친 것에 넣고, 없으면 새로 만든다.
+        {"memo", "item_ids"(새 품목), "created"(이번에 메모를 만들었는지)}. 없는 메모면 None.
+        """
+        with self._connect() as conn, conn:
+            created = False
+            if memo_id is None:
+                row = conn.execute(
+                    "SELECT id FROM memos WHERE title IS NULL ORDER BY touched DESC, id DESC LIMIT 1"
+                ).fetchone()
+                if row is None:
+                    top = conn.execute("SELECT COALESCE(MAX(touched), 0) + 1 FROM memos").fetchone()[0]
+                    cursor = conn.execute(
+                        "INSERT INTO memos (title, body, created_at, updated_at, touched) VALUES (NULL, '', ?, ?, ?)",
+                        (now, now, top),
+                    )
+                    memo_id, created = cursor.lastrowid, True
+                else:
+                    memo_id = row[0]
+            elif conn.execute("SELECT 1 FROM memos WHERE id = ?", (memo_id,)).fetchone() is None:
+                return None
+            item_ids = self._insert_items(conn, memo_id, texts, now)
+            self._touch(conn, memo_id, now)
+            return {"memo": self._memo(conn, memo_id), "item_ids": item_ids, "created": created}
 
     def update_memo_item(
         self, memo_id: int, item_id: int, now: str, text: str | None = None, done: bool | None = None
@@ -562,7 +506,7 @@ class Store:
     def bridge_summary(self, today: str, max_names: int) -> dict[str, Any]:
         """JY Bridge가 읽어 가는 오늘 요약. 읽기만 한다 (list_todos와 달리 지난 완료 항목을 지우지 않는다).
 
-        루틴은 오늘 하는 것만, 할 일은 묶음 품목이 아닌 것만 센다. 이름은 max_names개까지만 담고 개수는 전체를 센다.
+        루틴은 오늘 하는 것만 센다. 이름은 max_names개까지만 담고 개수는 전체를 센다.
         """
         with self._connect() as conn:
             rows = conn.execute(
@@ -574,7 +518,7 @@ class Store:
             todos = [
                 row[0]
                 for row in conn.execute(
-                    "SELECT text FROM todos WHERE done = 0 AND group_id IS NULL ORDER BY sort_key, id"
+                    "SELECT text FROM todos WHERE done = 0 ORDER BY sort_key, id"
                 )
             ]
         left = [r["text"] for r in due if not r["done_today"]]

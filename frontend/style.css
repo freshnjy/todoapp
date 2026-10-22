@@ -747,30 +747,19 @@ textarea {
   flex-basis: 100%;
 }
 
-/* 묶음 고르기: 입력창 아래의 버튼 줄. 요일 버튼과 같은 모양이고 길이는 이름에 맞춘다 */
-.group-bar {
+/* 메모 고르기: 입력창 아래의 버튼 줄. 요일 버튼과 같은 모양이고 길이는 제목에 맞춘다 */
+.memo-bar {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
-.group-chip {
+.memo-chip {
   max-width: 100%;
   padding: 0 14px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.group-chip.is-new {
-  border-style: dashed;
-  color: var(--text-sub);
-}
-
-.group-new {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
 
 /* 추가 폼의 고를 것: 카테고리와 반복을 한 줄 두 칸에 둔다.
@@ -797,7 +786,7 @@ textarea {
   padding: 0 18px;
 }
 
-/* 접히는 부분: 카테고리·반복, 묶음 고르기, 새 묶음 만들기 */
+/* 접히는 부분: 카테고리·반복, 메모 고르기 */
 .add-more {
   display: flex;
   flex-direction: column;
@@ -806,64 +795,6 @@ textarea {
 
 .add-form.is-collapsed .add-more {
   display: none;
-}
-
-/* 묶음 구역: 접힌 한 줄(이름과 남은 개수), 펼치면 아래에 품목 */
-.group-section {
-  margin-bottom: 20px;
-}
-
-.group-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-  min-height: var(--touch);
-  padding: 0 4px 0 0;
-  background: none;
-  border: 0;
-  border-radius: var(--radius-sm);
-  text-align: left;
-  cursor: pointer;
-}
-
-.group-toggle:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
-}
-
-.group-arrow {
-  flex-shrink: 0;
-  width: 32px;
-  font-size: 18px;
-  text-align: center;
-}
-
-.group-name {
-  min-width: 0;
-  font-weight: 800;
-  word-break: keep-all;
-  overflow-wrap: anywhere;
-}
-
-.group-count {
-  flex-shrink: 0;
-  font-weight: 800;
-  color: var(--cat, var(--text));
-}
-
-.todo-item.is-group-child {
-  margin-left: 20px;
-}
-
-.group-note {
-  margin: 0 0 8px 20px;
-  padding: 10px 12px;
-  color: var(--text-sub);
-  font-size: 14px;
-  border: 1.5px dashed var(--border);
-  border-radius: var(--radius-sm);
 }
 
 /* 화면 전환(오늘 / 습관 / 저장소)과 습관의 기간(주간 / 월간): 상태 필터와 같은 모양.
@@ -1165,6 +1096,14 @@ button.habit-mark {
   padding: 12px 12px 12px 16px;
 }
 
+/* 메모 칸의 펼침 화살표 */
+.memo-arrow {
+  flex-shrink: 0;
+  width: 32px;
+  font-size: 18px;
+  text-align: center;
+}
+
 .memo-head {
   display: flex;
   flex-direction: column;
@@ -1453,20 +1392,8 @@ button.habit-mark {
     font-size: 17px;
   }
 
-  .routine-section,
-  .group-section {
+  .routine-section {
     margin-bottom: 28px;
-  }
-
-  /* 묶음은 품목이 바로 아래에 이어지도록 한 칼럼으로 둔다 */
-  #group-list {
-    display: grid;
-    grid-template-columns: minmax(0, 720px);
-    gap: 10px;
-  }
-
-  .group-note {
-    margin-bottom: 0;
   }
 
   .todo-item {

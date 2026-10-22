@@ -1,6 +1,6 @@
 'use strict';
 
-// 음성 입력: 마이크 버튼을 누르고 "장보기에 우유 추가해줘"라고 말하면 들어간다.
+// 음성 입력: 마이크 버튼을 누르고 "장보기에 우유 추가해줘"라고 말하면 저장소의 "장보기" 메모에 들어간다.
 // 받아 적는 것은 브라우저의 음성 인식이 하고, 문장을 가르고 넣는 것은 서버가 한다 (docs/api.md의 "음성 입력").
 // app.js의 api, refresh, change, render, showNotice, clearNotice, guessCategory와 상태(busy, input)를 쓴다.
 
@@ -75,29 +75,20 @@ function quoteList(texts) {
   return texts.map((text) => `'${text}'`).join(', ');
 }
 
-// 방금 넣은 것을 지운다
-async function undoAdded(ids) {
+// 방금 넣은 것을 지운다. undo는 서버에 보낼 지우기 요청 목록을 만든다
+async function undoAdded(undo) {
   const undone = await change(async () => {
-    for (const id of ids) await api('DELETE', `api/todos/${id}`);
+    for (const path of undo) await api('DELETE', path);
   });
   if (undone) showToast('취소했어요', null, null, 2000);
 }
 
-function showAdded(message, created) {
-  const ids = created.map((todo) => todo.id);
-  showToast(message, '취소', () => undoAdded(ids), UNDO_MS);
+function showAdded(message, undo) {
+  showToast(message, '취소', () => undoAdded(undo), UNDO_MS);
 }
 
-// 없는 묶음이라고 알렸을 때 "할 일로 넣기": 말한 문장 그대로 일반 할 일로 넣는다
-async function addSpokenAsTodo(text, category) {
-  let created = null;
-  const saved = await change(async () => {
-    created = await api('POST', 'api/todos', { text: text.slice(0, MAX_LENGTH), category });
-  });
-  if (saved) showAdded(`할 일 ${quoteList([created.text])} 추가함`, [created]);
-}
-
-// 받아 적은 문장을 서버에 보내 넣는다
+// 받아 적은 문장을 서버에 보내 넣는다 (docs/api.md의 "음성 입력").
+// 메모 제목으로 시작하면 그 메모에, "○○에 △△ 추가해줘"인데 ○○이 메모가 아니면 "제목 없음" 메모에, 그 밖에는 할 일로
 async function sendSpoken(text) {
   if (busy) {
     showNotice('저장하는 중이에요. 잠시 뒤 다시 말해 주세요.');
@@ -117,12 +108,18 @@ async function sendSpoken(text) {
   } finally {
     busy = false;
   }
-  if (data.result === 'unknown_group') {
-    showToast(`'${data.name}' 묶음이 없습니다`, '할 일로 넣기', () => addSpokenAsTodo(data.text, category));
+  if (data.result === 'todo') {
+    const texts = quoteList(data.todos.map((todo) => todo.text));
+    showAdded(`할 일 ${texts} 추가함`, data.todos.map((todo) => `api/todos/${todo.id}`));
     return;
   }
-  const texts = quoteList(data.todos.map((todo) => todo.text));
-  showAdded(data.result === 'group' ? `${data.name}에 ${texts} 추가함` : `할 일 ${texts} 추가함`, data.todos);
+  // 메모에 넣었으면: 방금 넣은 품목을 지운다. 이번에 새로 만든 "제목 없음" 메모면 메모째 지운다
+  const memoId = data.memo.id;
+  const undo = data.created_memo
+    ? [`api/memos/${memoId}`]
+    : data.items.map((item) => `api/memos/${memoId}/items/${item.id}`);
+  const texts = quoteList(data.items.map((item) => item.text));
+  showAdded(`${data.name}에 ${texts} 추가함`, undo);
 }
 
 // ---------- 듣기 ----------

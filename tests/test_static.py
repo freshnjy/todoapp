@@ -58,14 +58,14 @@ def test_todos_are_not_kept_in_the_browser():
 
 
 def test_add_form_keeps_only_one_row_outside_the_folding_part():
-    """입력 영역은 접힌 채로 시작하고, 카테고리·반복·묶음 버튼은 접히는 덩어리 안에 있다."""
+    """입력 영역은 접힌 채로 시작하고, 카테고리·반복·메모 버튼은 접히는 덩어리 안에 있다."""
     page = (FRONTEND_DIR / "index.html").read_text(encoding="utf-8")
     form = page[page.index('id="add-form"'):page.index("</form>")]
     assert 'class="card add-form is-collapsed"' in page
     head, more = form.split('id="add-more"')
     for control in ('id="add-input"', 'id="voice-btn"', 'type="submit"'):
         assert control in head
-    for control in ('id="add-category"', 'id="add-rule"', 'id="group-bar"', 'id="group-new"'):
+    for control in ('id="add-category"', 'id="add-rule"', 'id="memo-bar"'):
         assert control in more and control not in head
 
 
@@ -82,3 +82,12 @@ def test_input_is_not_focused_when_the_page_opens():
     start = script[script.rindex("resetAddRule();"):]
     assert "focus(" not in start
     assert "autofocus" not in (FRONTEND_DIR / "index.html").read_text(encoding="utf-8")
+
+
+def test_groups_are_gone_from_the_screen():
+    # 9단계: 묶음은 저장소의 메모가 대신한다. 화면 파일에 묶음 화면과 api/groups 호출이 없다.
+    page = (FRONTEND_DIR / "index.html").read_text(encoding="utf-8")
+    for marker in ("group-bar", "group-new", "group-section", "group-list"):
+        assert marker not in page
+    for name in ("app.js", "voice.js", "memos.js", "habits.js"):
+        assert "api/groups" not in (FRONTEND_DIR / name).read_text(encoding="utf-8")

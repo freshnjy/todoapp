@@ -66,9 +66,9 @@
         <p class="voice-heard" id="voice-heard"></p>
         <button class="btn btn-primary voice-big" id="voice-big" type="button" hidden>눌러서 말하기</button>
       </div>
-      <!-- 접히는 부분: 카테고리·반복, 묶음 고르기, 새 묶음 만들기 -->
+      <!-- 접히는 부분: 카테고리·반복, 메모 고르기 -->
       <div class="add-more" id="add-more">
-        <!-- 고를 것: 카테고리와 반복을 한 줄에. 묶음을 고르면 감춘다 -->
+        <!-- 고를 것: 카테고리와 반복을 한 줄에. 메모를 고르면 감춘다 -->
         <div class="add-options" id="add-options">
           <select class="add-category" id="add-category" aria-label="카테고리">
             <option value="work">업무</option>
@@ -78,22 +78,9 @@
           <!-- 반복 설정 (app.js가 채움). 반복을 고르면 루틴으로 저장된다 -->
           <div id="add-rule"></div>
         </div>
-        <!-- 묶음 고르기 (app.js가 채움). 하나를 고르고 입력하면 그 묶음의 품목으로 들어간다 -->
-        <div class="group-bar" id="group-bar" role="group" aria-label="넣을 묶음"></div>
-        <!-- 새 묶음 만들기: "+ 묶음"을 누르면 보인다 -->
-        <div class="group-new" id="group-new" hidden>
-          <input class="add-input" id="group-name" type="text" maxlength="20"
-                 placeholder="묶음 이름 (예: 장보기)" aria-label="새 묶음 이름" autocomplete="off">
-          <div class="add-row">
-            <select class="add-category" id="group-category" aria-label="새 묶음의 카테고리">
-              <option value="work">업무</option>
-              <option value="personal" selected>개인</option>
-              <option value="growth">성장</option>
-            </select>
-            <button class="btn btn-primary" id="group-create" type="button">만들기</button>
-            <button class="btn" id="group-cancel" type="button">취소</button>
-          </div>
-        </div>
+        <!-- 메모 고르기 (app.js가 채움). 하나를 고르고 입력하면 그 메모의 품목으로 들어간다.
+             새 메모는 저장소 화면에서 만든다 -->
+        <div class="memo-bar" id="memo-bar" role="group" aria-label="넣을 곳"></div>
       </div>
     </form>
 
@@ -112,7 +99,7 @@
       <button class="tab" type="button" data-status="done" aria-pressed="false">완료</button>
     </nav>
 
-    <!-- 목록 (app.js의 render()가 채움). 루틴과 묶음이 하나도 없으면 그 구역과 "할 일" 제목은 감춘다 -->
+    <!-- 목록 (app.js의 render()가 채움). 루틴이 하나도 없으면 그 구역과 "할 일" 제목은 감춘다 -->
     <div id="lists">
       <section class="routine-section" id="routine-section" aria-labelledby="routine-title" hidden>
         <h2 class="section-title" id="routine-title">오늘의 루틴</h2>
@@ -122,12 +109,6 @@
           <summary id="rest-summary"></summary>
           <ul class="todo-list" id="rest-list"></ul>
         </details>
-      </section>
-
-      <!-- 묶음: 한 줄로 접혀 있고, 누르면 품목이 펼쳐진다 -->
-      <section class="group-section" id="group-section" aria-labelledby="group-title" hidden>
-        <h2 class="section-title" id="group-title">묶음</h2>
-        <ul class="todo-list" id="group-list"></ul>
       </section>
 
       <h2 class="section-title" id="todo-title" hidden>할 일</h2>

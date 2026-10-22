@@ -12,7 +12,7 @@
 
 ## 폴더 구조
 ```
-backend/app/        FastAPI 앱 (main.py, auth.py, store.py, clock.py, rules.py, todos.py, groups.py, memos.py, routines.py, habits.py, voice.py, bridge.py)
+backend/app/        FastAPI 앱 (main.py, auth.py, store.py, clock.py, rules.py, todos.py, memos.py, routines.py, habits.py, voice.py, bridge.py)
 frontend/           index.html, login.html, style.css, app.js, habits.js, memos.js, voice.js, login.js
 tests/              pytest
 deploy/             nginx, systemd 예시 (실제 값 없음)

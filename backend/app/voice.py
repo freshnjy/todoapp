@@ -1,4 +1,4 @@
-"""음성 입력 API. 받아 적은 문장을 규칙으로 갈라 묶음의 품목이나 할 일로 넣는다.
+"""음성 입력 API. 받아 적은 문장을 규칙으로 갈라 저장소 메모의 품목이나 할 일로 넣는다.
 
 음성 인식은 브라우저가 하고, 서버는 글만 받는다. 응답 형식은 docs/api.md.
 """
@@ -9,10 +9,11 @@ import re
 from dataclasses import dataclass, field
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from .groups import ITEMS_MAX_COUNT, ITEMS_TEXT_MAX_LENGTH, NAME_MAX_LENGTH
+from . import clock
+from .memos import ITEMS_MAX_COUNT, ITEMS_TEXT_MAX_LENGTH, TITLE_MAX_LENGTH
 from .store import Store
 from .todos import MAX_LENGTH, Category
 
@@ -21,12 +22,13 @@ from .todos import MAX_LENGTH, Category
 _TAIL = re.compile(
     r"(?:\s+좀)?\s*(?:추가(?:\s*(?:해|하기))?|넣어|적어|담아)(?:\s*(?:줘|주세요|줄래))?$"
 )
-# 묶음 이름 뒤에 붙는 말
+# 메모 제목 뒤에 붙는 말
 _PARTICLE = r"(?:에다가|에다|에는|에도|에)"
-# 묶음 이름 뒤에서는 음성 인식이 "에"를 잘못 받아 적은 것("의", "애", "예", "엔")도 함께 뗀다.
-_GROUP_PARTICLE = r"(?:에다가|에다|에는|에도|에|의|애|예|엔)"
-# "○○에 △△" 꼴. ○○이 묶음이 아닐 때 없는 묶음의 이름으로 본다.
+# 메모 제목 뒤에서는 음성 인식이 "에"를 잘못 받아 적은 것("의", "애", "예", "엔")도 함께 뗀다.
+_TITLE_PARTICLE = r"(?:에다가|에다|에는|에도|에|의|애|예|엔)"
+# "○○에 △△" 꼴. ○○이 메모 제목이 아니면 "제목 없음" 메모에 "○○ △△"로 넣는다.
 _PLACE = re.compile(rf"^(\S.*?){_PARTICLE}\s+(\S.*)$")
+UNTITLED = "제목 없음"
 _COMMAS = re.compile(r"[,，、]")
 _END_MARKS = ".!?。"
 
@@ -35,11 +37,11 @@ _END_MARKS = ".!?。"
 class Parsed:
     """문장을 가른 결과.
 
-    kind: "group"(묶음의 품목), "todo"(일반 할 일), "unknown_group"(없는 묶음)
+    kind: "memo"(제목 있는 메모의 품목), "untitled"("제목 없음" 메모의 품목), "todo"(일반 할 일)
     """
 
     kind: str
-    group_id: Optional[int] = None
+    memo_id: Optional[int] = None
     items: list[str] = field(default_factory=list)
     text: str = ""
     name: str = ""
@@ -106,48 +108,52 @@ def split_spoken_items(text: str) -> list[str]:
     return [item for item in items if item]
 
 
-def _match_group(sentence: str, name: str) -> Optional[tuple[str, bool]]:
-    """문장이 이 묶음 이름으로 시작하면 (나머지 글, "에"가 붙었는지)를 돌려준다. 띄어쓰기는 무시한다.
+def _match_title(sentence: str, name: str) -> Optional[tuple[str, bool]]:
+    """문장이 이 메모 제목으로 시작하면 (나머지 글, "에"가 붙었는지)를 돌려준다. 띄어쓰기는 무시한다.
 
     "에"는 이름에 붙어 있어도("짐싸기에"), 떨어져 있어도("짐싸기 에") 뗀다.
     """
     chars = [re.escape(char) for char in name if not char.isspace()]
     if not chars:
         return None
-    match = re.match(rf"{r'\s*'.join(chars)}\s*({_GROUP_PARTICLE})?(?:\s+|$)", sentence, re.IGNORECASE)
+    match = re.match(rf"{r'\s*'.join(chars)}\s*({_TITLE_PARTICLE})?(?:\s+|$)", sentence, re.IGNORECASE)
     if match is None:
         return None
     return sentence[match.end():], match.group(1) is not None
 
 
-def parse(sentence: str, groups: list[dict]) -> Parsed:
-    """받아 적은 문장을 가른다. groups는 [{"id", "name", ...}].
+def parse(sentence: str, memos: list[dict]) -> Parsed:
+    """받아 적은 문장을 가른다. memos는 제목 있는 메모 [{"id", "title"}].
 
-    - 이미 있는 묶음 이름으로 시작하면 그 묶음의 품목. "에"나 꼬리말("추가해줘")이 없어도 된다
+    - 메모 제목으로 시작하면 그 메모의 품목. "에"나 꼬리말("추가해줘")이 없어도 된다
       (음성 인식이 "에"를 자주 빠뜨리거나 다르게 받아 적는다)
-    - "○○에 △△ 추가해줘" 꼴인데 ○○이 묶음이 아니면 없는 묶음
+    - "○○에 △△ 추가해줘" 꼴인데 ○○이 메모 제목이 아니면 "제목 없음" 메모에 "○○ △△"
     - 그 밖에는 말한 그대로 일반 할 일
     """
     sentence = normalize(sentence)
     tail = _TAIL.search(sentence)
     body = sentence[: tail.start()].strip() if tail else sentence
 
-    # 이름이 겹치면(예: "장"과 "장보기") 긴 이름을 먼저 본다.
-    by_length = sorted(groups, key=lambda group: len("".join(group["name"].split())), reverse=True)
-    for group in by_length:
-        matched = _match_group(body, group["name"])
+    # 제목이 겹치면(예: "장"과 "장보기") 긴 제목을 먼저 본다.
+    by_length = sorted(memos, key=lambda memo: len("".join(memo["title"].split())), reverse=True)
+    for memo in by_length:
+        matched = _match_title(body, memo["title"])
         if matched is None:
             continue
         rest, has_particle = matched
         items = split_spoken_items(rest)
-        # 묶음 이름만 말한 것("짐싸기")은 품목이 없으니 넘어간다. "짐싸기에 추가해줘"는 품목이 없다고 알린다.
+        # 제목만 말한 것("장보기")은 품목이 없으니 넘어간다. "장보기에 추가해줘"는 품목이 없다고 알린다.
         if items or has_particle or tail:
-            return Parsed("group", group_id=group["id"], name=group["name"], items=items)
+            return Parsed("memo", memo_id=memo["id"], name=memo["title"], items=items)
 
     if tail:
         place = _PLACE.match(body)
-        if place and len(place.group(1)) <= NAME_MAX_LENGTH:
-            return Parsed("unknown_group", name=place.group(1), text=sentence)
+        if place and len(place.group(1)) <= TITLE_MAX_LENGTH:
+            name = place.group(1)
+            # 어디에 넣으려던 것인지 남겨 두려고 말한 곳을 앞에 붙인다 ("약국 밴드").
+            items = [f"{name} {item}" for item in split_spoken_items(place.group(2))]
+            if items:
+                return Parsed("untitled", name=name, items=items)
     return Parsed("todo", text=sentence)
 
 
@@ -164,35 +170,47 @@ def _invalid(message: str) -> HTTPException:
 
 
 @router.post("/api/voice", status_code=201)
-def add_by_voice(body: VoiceInput, request: Request, response: Response) -> dict:
+def add_by_voice(body: VoiceInput, request: Request) -> dict:
     store: Store = request.app.state.store
     if len(body.text) > ITEMS_TEXT_MAX_LENGTH:
         raise _invalid(f"한 번에 {ITEMS_TEXT_MAX_LENGTH}자까지 넣을 수 있습니다.")
     if not normalize(body.text):
         raise _invalid("아무 말도 듣지 못했습니다.")
 
-    groups = store.list_groups()
-    parsed = parse(body.text, groups)
+    titled = [{"id": memo["id"], "title": memo["title"]} for memo in store.list_memos() if memo["title"]]
+    parsed = parse(body.text, titled)
+    text = normalize(body.text)
 
-    if parsed.kind == "unknown_group":
-        # 아무것도 넣지 않는다. 묶음을 새로 만들지도 않는다.
-        response.status_code = 200
-        return {"result": "unknown_group", "name": parsed.name, "text": parsed.text, "group": None, "todos": []}
-
-    if parsed.kind == "group":
+    if parsed.kind in ("memo", "untitled"):
         if not parsed.items:
             raise _invalid("넣을 품목을 듣지 못했습니다.")
         if len(parsed.items) > ITEMS_MAX_COUNT:
             raise _invalid(f"한 번에 {ITEMS_MAX_COUNT}개까지 넣을 수 있습니다.")
         if any(len(item) > MAX_LENGTH for item in parsed.items):
             raise _invalid(f"품목 하나는 {MAX_LENGTH}자까지 쓸 수 있습니다.")
-        todos = store.add_items(parsed.group_id, parsed.items)
-        if todos is None:
-            raise HTTPException(status_code=404, detail="묶음을 찾을 수 없습니다.")
-        group = next(group for group in groups if group["id"] == parsed.group_id)
-        return {"result": "group", "name": group["name"], "text": normalize(body.text), "group": group, "todos": todos}
+        added = store.add_items_by_voice(parsed.memo_id, parsed.items, clock.now())
+        if added is None:
+            raise HTTPException(status_code=404, detail="메모를 찾을 수 없습니다.")
+        memo = added["memo"]
+        return {
+            "result": parsed.kind,
+            "name": memo["title"] or UNTITLED,
+            "text": text,
+            "memo": memo,
+            "items": [item for item in memo["items"] if item["id"] in added["item_ids"]],
+            "created_memo": added["created"],
+            "todos": [],
+        }
 
     if len(parsed.text) > MAX_LENGTH:
         raise _invalid(f"할 일은 {MAX_LENGTH}자까지 쓸 수 있습니다.")
     todo = store.add_todo(parsed.text, body.category)
-    return {"result": "todo", "name": "", "text": parsed.text, "group": None, "todos": [todo]}
+    return {
+        "result": "todo",
+        "name": "",
+        "text": parsed.text,
+        "memo": None,
+        "items": [],
+        "created_memo": False,
+        "todos": [todo],
+    }
