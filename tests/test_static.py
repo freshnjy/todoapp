@@ -74,3 +74,11 @@ def test_stats_card_has_no_category_rows():
     script = (FRONTEND_DIR / "app.js").read_text(encoding="utf-8")
     assert "stats-list" not in page and "stats-row" not in page
     assert "stats-list" not in script
+
+
+def test_input_is_not_focused_when_the_page_opens():
+    # 휴대폰 자판이 바로 떠서 화면을 가리지 않게, 처음 열 때는 입력창에 커서를 두지 않는다.
+    script = (FRONTEND_DIR / "app.js").read_text(encoding="utf-8")
+    start = script[script.rindex("resetAddRule();"):]
+    assert "focus(" not in start
+    assert "autofocus" not in (FRONTEND_DIR / "index.html").read_text(encoding="utf-8")

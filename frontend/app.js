@@ -1177,8 +1177,8 @@ document.addEventListener('visibilitychange', () => {
   load();
 });
 
-// 시작: 빈 틀을 먼저 그리고 서버에서 불러온다. 바로 적을 수 있게 입력창에 커서를 둔다
+// 시작: 빈 틀을 먼저 그리고 서버에서 불러온다.
+// 입력창에 커서를 두지 않는다. 휴대폰 자판이 바로 떠서 화면을 가리기 때문이다(2026-10-22).
 resetAddRule();
 render();
-input.focus();
 load();
