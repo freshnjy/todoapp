@@ -79,7 +79,7 @@ def clear_done(request: Request) -> dict:
 @router.patch("/api/todos/{todo_id}")
 def update_todo(todo_id: int, body: TodoUpdate, request: Request) -> dict:
     todo = _store(request).update_todo(
-        todo_id, clock.today(), text=body.text, category=body.category, done=body.done, now=clock.now()
+        todo_id, clock.today(), text=body.text, category=body.category, done=body.done
     )
     if todo is None:
         raise _not_found()

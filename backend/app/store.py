@@ -213,11 +213,10 @@ class Store:
         text: str | None = None,
         category: str | None = None,
         done: bool | None = None,
-        now: str | None = None,
     ) -> dict[str, Any] | None:
         """준 값만 바꾼다. 완료 여부가 실제로 바뀌면 맨 아래로 옮긴다. 없는 id면 None.
 
-        완료로 바뀌면 연결된 메모마다 체크한 품목을 지운다 (되돌려도 살리지 않는다). now는 메모의 고친 시각.
+        완료해도 연결된 메모는 건드리지 않는다 (체크한 품목은 체크된 채로 남는다, 2026-10-23 사용자 결정).
         """
         with self._connect() as conn, conn:
             row = conn.execute("SELECT done FROM todos WHERE id = ?", (todo_id,)).fetchone()
@@ -233,18 +232,7 @@ class Store:
                     "UPDATE todos SET done = ?, done_on = ?, sort_key = ? WHERE id = ?",
                     (int(done), today if done else None, bottom, todo_id),
                 )
-                if done:
-                    self._clear_linked_done_items(conn, todo_id, now or today)
             return self._todo(conn, todo_id)
-
-    def _clear_linked_done_items(self, conn: sqlite3.Connection, todo_id: int, now: str) -> None:
-        """할 일에 연결된 메모마다 체크한 품목을 지운다. 지운 것이 있는 메모만 고친 시각을 바꾼다."""
-        for (memo_id,) in conn.execute(
-            "SELECT memo_id FROM todo_memos WHERE todo_id = ? ORDER BY id", (todo_id,)
-        ).fetchall():
-            cursor = conn.execute("DELETE FROM memo_items WHERE memo_id = ? AND done = 1", (memo_id,))
-            if cursor.rowcount > 0:
-                self._touch(conn, memo_id, now)
 
     def set_todo_memos(self, todo_id: int, memo_ids: list[int]) -> dict[str, Any] | None:
         """할 일의 연결을 memo_ids로 통째로 바꾼다 (순서대로, 겹치면 한 번만).

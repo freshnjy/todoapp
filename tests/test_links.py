@@ -99,74 +99,36 @@ def test_routines_have_no_memo_link(logged_in):
     assert "memo_ids" not in res.json()
 
 
-# ---------- 완료하면 체크한 품목을 지운다 ----------
+# ---------- 완료해도 메모는 그대로 (체크 표시만 남는다) ----------
 
-def test_completing_clears_checked_items_of_linked_memos(logged_in):
+def test_completing_keeps_linked_memos_as_they_are(logged_in):
     todo = add_todo(logged_in)
     shop = add_memo(logged_in, "장보기", "우유, 계란, 두부")
     pack = add_memo(logged_in, "짐싸기", "여권, 충전기")
-    other = add_memo(logged_in, "약국", "밴드")
     check(logged_in, shop, "우유")
     check(logged_in, shop, "두부")
     check(logged_in, pack, "여권")
-    check(logged_in, other, "밴드")  # 연결하지 않은 메모
     link(logged_in, todo["id"], [shop["id"], pack["id"]])
+    before = logged_in.get("/api/memos").json()["memos"]
 
     res = logged_in.patch(f"/api/todos/{todo['id']}", json={"done": True})
     assert res.status_code == 200 and res.json()["done"] is True
-    assert item_state(get_memo(logged_in, shop["id"])) == [("계란", False)]
-    assert item_state(get_memo(logged_in, pack["id"])) == [("충전기", False)]
-    assert item_state(get_memo(logged_in, other["id"])) == [("밴드", True)]
+    assert item_state(get_memo(logged_in, shop["id"])) == [("우유", True), ("계란", False), ("두부", True)]
+    assert item_state(get_memo(logged_in, pack["id"])) == [("여권", True), ("충전기", False)]
+    # 메모의 순서와 고친 시각도 바뀌지 않는다
+    assert logged_in.get("/api/memos").json()["memos"] == before
     # 연결은 그대로 남는다
     assert get_todo(logged_in, todo["id"])["memo_ids"] == [shop["id"], pack["id"]]
 
 
-def test_unchecking_the_todo_does_not_bring_items_back(logged_in):
+def test_unchecking_the_todo_keeps_memos_too(logged_in):
     todo = add_todo(logged_in)
     shop = add_memo(logged_in, "장보기", "우유, 계란")
     check(logged_in, shop, "우유")
     link(logged_in, todo["id"], [shop["id"]])
     logged_in.patch(f"/api/todos/{todo['id']}", json={"done": True})
     logged_in.patch(f"/api/todos/{todo['id']}", json={"done": False})
-    assert item_state(get_memo(logged_in, shop["id"])) == [("계란", False)]
-
-
-def test_editing_a_done_todo_does_not_clear_again(logged_in):
-    todo = add_todo(logged_in)
-    shop = add_memo(logged_in, "장보기", "우유")
-    link(logged_in, todo["id"], [shop["id"]])
-    logged_in.patch(f"/api/todos/{todo['id']}", json={"done": True})
-    # 완료한 뒤 체크한 품목은, 할 일의 글을 고쳐도(완료 그대로) 지우지 않는다
-    check(logged_in, get_memo(logged_in, shop["id"]), "우유")
-    logged_in.patch(f"/api/todos/{todo['id']}", json={"text": "코스트코 다녀오기", "done": True})
-    assert item_state(get_memo(logged_in, shop["id"])) == [("우유", True)]
-
-
-def test_completing_moves_the_memo_up_only_when_something_was_cleared(logged_in, monkeypatch):
-    todo = add_todo(logged_in)
-    shop = add_memo(logged_in, "장보기", "우유")
-    add_memo(logged_in, "짐싸기")  # 나중에 만들어 위에 있다
-    link(logged_in, todo["id"], [shop["id"]])
-    logged_in.patch(f"/api/todos/{todo['id']}", json={"done": True})  # 체크한 것이 없다
-    assert [m["title"] for m in logged_in.get("/api/memos").json()["memos"]] == ["짐싸기", "장보기"]
-
-    other = add_todo(logged_in, "마트 가기")
-    check(logged_in, get_memo(logged_in, shop["id"]), "우유")  # 체크하면 위로 올라온다
-    add_memo(logged_in, "약국")
-    link(logged_in, other["id"], [shop["id"]])
-    monkeypatch.setattr(clock, "now", lambda: "2026-10-10T18:00:00+09:00")
-    logged_in.patch(f"/api/todos/{other['id']}", json={"done": True})
-    memos = logged_in.get("/api/memos").json()["memos"]
-    assert memos[0]["title"] == "장보기"
-    assert memos[0]["updated_at"] == "2026-10-10T18:00:00+09:00"
-
-
-def test_completing_without_links_changes_no_memo(logged_in):
-    shop = add_memo(logged_in, "장보기", "우유")
-    check(logged_in, shop, "우유")
-    todo = add_todo(logged_in)
-    logged_in.patch(f"/api/todos/{todo['id']}", json={"done": True})
-    assert item_state(get_memo(logged_in, shop["id"])) == [("우유", True)]
+    assert item_state(get_memo(logged_in, shop["id"])) == [("우유", True), ("계란", False)]
 
 
 # ---------- 지우면 연결도 없어진다 ----------
