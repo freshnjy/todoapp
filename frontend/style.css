@@ -742,6 +742,46 @@ textarea {
   font-weight: 600;
 }
 
+/* 펼친 메모 끝의 품목 넣기 (11단계) */
+.link-add-open {
+  display: block;
+  width: 100%;
+  min-height: var(--touch);
+  padding: 0 6px;
+  text-align: left;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  color: #8a6d12;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.link-add-open:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+.link-add {
+  display: flex;
+  gap: 6px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+
+.link-add .add-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.link-add .btn {
+  flex: none;
+  padding: 0 12px;
+  font-weight: 700;
+}
+
 /* 할 일 수정 화면의 메모 고르기 */
 .edit-memos {
   display: flex;

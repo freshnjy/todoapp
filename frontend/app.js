@@ -69,6 +69,8 @@ const CONNECT_ERROR = '서버와 연결하지 못했어요. 잠시 후 다시 �
 let todos = [];
 // 오늘 화면에서 펼쳐 둔 연결 메모 ("할일id:메모id", 저장하지 않음)
 const openLinks = new Set();
+// 펼친 연결 메모에서 연 "품목 넣기" 칸 ("할일id:메모id" → 적던 글, 11단계. 저장하지 않음)
+const linkAdds = new Map();
 // 추가 폼에서 고른 메모의 id (없으면 할 일이나 루틴으로 들어간다). 등록한 뒤에도 그대로 둔다
 let selectedMemo = null;
 // 루틴: { id, text, category, rule, due(오늘 하는 날인지), done(오늘 했는지) }
@@ -154,6 +156,9 @@ async function refresh() {
     const [todoId, memoId] = key.split(':');
     const todo = findItem('todo', todoId);
     if (!todo || !todo.memoIds.includes(Number(memoId)) || !findMemo(Number(memoId))) openLinks.delete(key);
+  });
+  [...linkAdds.keys()].forEach((key) => {
+    if (!openLinks.has(key)) linkAdds.delete(key);
   });
   // 다른 기기에서 지우거나 제목을 뺀 메모는 고른 것에서도 뺀다
   const picked = selectedMemo === null ? null : findMemo(selectedMemo);
@@ -502,8 +507,8 @@ function createLinkPanel(todo, memo) {
   if (memo.items.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'link-empty';
-    empty.textContent = '품목이 없어요. 저장소에서 넣을 수 있어요';
-    li.append(empty);
+    empty.textContent = '품목이 없어요';
+    li.append(empty, createLinkAdd(todo, memo));
     return li;
   }
   const list = document.createElement('ul');
@@ -528,8 +533,85 @@ function createLinkPanel(todo, memo) {
     row.append(label);
     list.append(row);
   });
-  li.append(list);
+  li.append(list, createLinkAdd(todo, memo));
   return li;
+}
+
+// 펼친 메모 끝의 품목 넣기 (11단계): 닫혀 있으면 "+ 품목" 버튼, 열면 입력 칸·추가·닫기
+function createLinkAdd(todo, memo) {
+  const key = linkKey(todo.id, memo.id);
+  const name = memoName(memo);
+  if (!linkAdds.has(key)) {
+    const open = document.createElement('button');
+    open.type = 'button';
+    open.className = 'link-add-open';
+    open.dataset.action = 'link-add-open';
+    open.dataset.todo = todo.id;
+    open.dataset.memo = String(memo.id);
+    open.textContent = '+ 품목';
+    open.setAttribute('aria-label', `${name}에 품목 넣기`);
+    return open;
+  }
+  const form = document.createElement('form');
+  form.className = 'link-add';
+  form.dataset.role = 'link-add';
+  form.dataset.todo = todo.id;
+  form.dataset.memo = String(memo.id);
+  const field = document.createElement('input');
+  field.className = 'add-input';
+  field.type = 'text';
+  field.maxLength = ITEMS_TEXT_MAX_LENGTH;
+  field.autocomplete = 'off';
+  field.enterKeyHint = 'done';
+  field.placeholder = '쉼표로 여러 개';
+  field.value = linkAdds.get(key);
+  field.dataset.action = 'link-add-text';
+  field.setAttribute('aria-label', `${name}에 넣을 품목`);
+  const submit = document.createElement('button');
+  submit.type = 'submit';
+  submit.className = 'btn btn-primary';
+  submit.textContent = '추가';
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'btn';
+  close.dataset.action = 'link-add-close';
+  close.textContent = '닫기';
+  close.setAttribute('aria-label', `${name} 품목 넣기 닫기`);
+  form.append(field, submit, close);
+  return form;
+}
+
+function focusLinkAdd(todoId, memoId, action) {
+  const target = listsEl.querySelector(`.link-panel[data-todo="${todoId}"][data-memo="${memoId}"] [data-action="${action}"]`);
+  if (target) target.focus();
+}
+
+function closeLinkAdd(todoId, memoId) {
+  linkAdds.delete(linkKey(todoId, memoId));
+  render();
+  focusLinkAdd(todoId, memoId, 'link-add-open');
+}
+
+async function submitLinkAdd(todoId, memoId) {
+  const key = linkKey(todoId, memoId);
+  const text = (linkAdds.get(key) || '').trim();
+  if (text === '') {
+    focusLinkAdd(todoId, memoId, 'link-add-text');
+    return;
+  }
+  const { error } = splitItems(text);
+  if (error) {
+    showNotice(error);
+    focusLinkAdd(todoId, memoId, 'link-add-text');
+    return;
+  }
+  const ok = await addMemoItems(memoId, text);
+  // 넣었으면 칸을 비우고 열어 둔다 (이어서 넣기). 실패하면 적던 글을 남긴다
+  if (ok && linkAdds.has(key)) {
+    linkAdds.set(key, '');
+    render();
+  }
+  focusLinkAdd(todoId, memoId, 'link-add-text');
 }
 
 // 할 일 한 줄과, 펼쳐 둔 연결 메모의 품목
@@ -1056,6 +1138,11 @@ listsEl.addEventListener('change', async (event) => {
 
 // 수정 중 입력값은 화면 상태에 담아 둔다 (다시 그려도 유지)
 listsEl.addEventListener('input', (event) => {
+  if (event.target.dataset.action === 'link-add-text') {
+    const form = event.target.closest('.link-add');
+    linkAdds.set(linkKey(form.dataset.todo, form.dataset.memo), event.target.value);
+    return;
+  }
   if (!editing) return;
   const action = event.target.dataset.action;
   if (action === 'edit-text') editing.text = event.target.value;
@@ -1065,11 +1152,21 @@ listsEl.addEventListener('input', (event) => {
 // 수정 저장 (Enter 또는 [저장])
 listsEl.addEventListener('submit', (event) => {
   event.preventDefault();
+  if (event.target.dataset.role === 'link-add') {
+    submitLinkAdd(event.target.dataset.todo, event.target.dataset.memo);
+    return;
+  }
   if (editing) endEdit(editing.kind, editing.id, true);
 });
 
 // Esc로 수정 취소 (한글 조합 중에는 무시)
 listsEl.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !event.isComposing && event.target.closest('.link-add')) {
+    event.preventDefault();
+    const form = event.target.closest('.link-add');
+    closeLinkAdd(form.dataset.todo, form.dataset.memo);
+    return;
+  }
   if (event.key !== 'Escape' || event.isComposing || !editing) return;
   if (!event.target.closest('.is-editing')) return;
   event.preventDefault();
@@ -1079,6 +1176,18 @@ listsEl.addEventListener('keydown', (event) => {
 listsEl.addEventListener('click', async (event) => {
   const button = event.target.closest('[data-action]');
   if (!button || button.tagName !== 'BUTTON') return;
+  // 펼친 메모의 품목 넣기 칸 열기·닫기 (11단계)
+  if (button.dataset.action === 'link-add-open') {
+    linkAdds.set(linkKey(button.dataset.todo, button.dataset.memo), '');
+    render();
+    focusLinkAdd(button.dataset.todo, button.dataset.memo, 'link-add-text');
+    return;
+  }
+  if (button.dataset.action === 'link-add-close') {
+    const form = button.closest('.link-add');
+    closeLinkAdd(form.dataset.todo, form.dataset.memo);
+    return;
+  }
   const row = button.closest('.todo-item');
   if (!row) return;
   const { kind, id } = row.dataset;
@@ -1089,8 +1198,10 @@ listsEl.addEventListener('click', async (event) => {
   // 연결 메모 펼치기·접기
   if (action === 'link-open') {
     const key = linkKey(id, button.dataset.memo);
-    if (openLinks.has(key)) openLinks.delete(key);
-    else openLinks.add(key);
+    if (openLinks.has(key)) {
+      openLinks.delete(key);
+      linkAdds.delete(key);
+    } else openLinks.add(key);
     render();
     const again = listsEl.querySelector(`${itemSelector(kind, id)} [data-action="link-open"][data-memo="${button.dataset.memo}"]`);
     if (again) again.focus();

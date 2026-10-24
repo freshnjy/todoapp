@@ -91,3 +91,13 @@ def test_groups_are_gone_from_the_screen():
         assert marker not in page
     for name in ("app.js", "voice.js", "memos.js", "habits.js"):
         assert "api/groups" not in (FRONTEND_DIR / name).read_text(encoding="utf-8")
+
+
+def test_linked_memo_panel_can_add_items():
+    """11단계: 펼친 연결 메모 끝의 "+ 품목"으로 그 메모에 품목을 넣는다 (저장소와 같은 API)."""
+    script = (FRONTEND_DIR / "app.js").read_text(encoding="utf-8")
+    assert "'+ 품목'" in script
+    assert "function createLinkAdd(" in script
+    assert "li.append(list, createLinkAdd(todo, memo))" in script
+    assert "api('POST', `api/memos/${memoId}/items`" in script
+    assert "저장소에서 넣을 수 있어요" not in script
